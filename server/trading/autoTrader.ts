@@ -4,6 +4,7 @@
  */
 
 import { ALL_TRADING_SYMBOLS } from "./strategyGenerator";
+import { getMarketDataService } from "./realMarketData";
 
 export interface TradingSignal {
   id: string;
@@ -328,10 +329,24 @@ async function analyzeMLPrediction(
 }
 
 /**
- * Get current market price (simulated - in production would fetch real data)
+ * Get current market price from REAL market data
  */
 async function getCurrentPrice(symbol: string): Promise<number> {
-  // Base prices for different symbols
+  try {
+    const marketDataService = getMarketDataService();
+    const marketPrice = await marketDataService.getPrice(symbol);
+    
+    if (marketPrice && marketPrice.price > 0) {
+      console.log(`[Price] ${symbol}: $${marketPrice.price.toFixed(2)} (REAL)`);
+      return marketPrice.price;
+    }
+    
+    console.warn(`[Price] No real data for ${symbol}, using fallback`);
+  } catch (error) {
+    console.error(`[Price] Error fetching ${symbol}:`, error);
+  }
+  
+  // Fallback prices only if API fails
   const basePrices: Record<string, number> = {
     // Forex majors
     EURUSD: 1.0850,
@@ -342,9 +357,9 @@ async function getCurrentPrice(symbol: string): Promise<number> {
     USDCAD: 1.3650,
     NZDUSD: 0.6050,
     
-    // Crypto
-    BTCUSD: 43500,
-    ETHUSD: 2280,
+    // Crypto (outdated - should use real data)
+    BTCUSD: 106000,
+    ETHUSD: 2650,
     BNBUSD: 315,
     SOLUSD: 98,
     ADAUSD: 0.52,

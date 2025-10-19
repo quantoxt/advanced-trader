@@ -237,6 +237,13 @@ export class AutomationEngine {
         if (signal.confidence >= 50) {
           const id = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
+          // Determine execution status
+          const isConnected = this.mt5.isConnected();
+          let executionStatus: "pending" | "executed" | "cancelled" = "pending";
+          if (signal.confidence >= 80 && isConnected) {
+            executionStatus = "executed";
+          }
+          
           // Save signal to database
           await db.insert(tradingSignals).values({
             id,
@@ -247,7 +254,7 @@ export class AutomationEngine {
             confidence: Math.round(signal.confidence).toString(),
             indicators: JSON.stringify(signal.indicators),
             sentiment: "0",
-            executed: signal.confidence >= 80 ? "executed" : "pending",
+            executed: executionStatus,
           });
           
           signalsGenerated++;
