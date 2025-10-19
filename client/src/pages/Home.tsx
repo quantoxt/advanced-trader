@@ -10,10 +10,32 @@ import { Link } from "wouter";
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [autoStarted, setAutoStarted] = useState(false);
+  const startAutomation = trpc.automation.start.useMutation();
+  const automationStatus = trpc.automation.status.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchInterval: 5000, // Check every 5 seconds
+  });
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Auto-start full automation when user logs in
+  useEffect(() => {
+    if (isAuthenticated && !autoStarted && mounted && !automationStatus.data?.isRunning) {
+      console.log('[Auto] Starting full automation engine...');
+      startAutomation.mutate({ riskTolerance: "moderate" }, {
+        onSuccess: (data) => {
+          console.log('[Auto] Automation started successfully:', data);
+          setAutoStarted(true);
+        },
+        onError: (error) => {
+          console.error('[Auto] Failed to start automation:', error);
+        },
+      });
+    }
+  }, [isAuthenticated, autoStarted, mounted, automationStatus.data]);
 
   // Fetch user data if authenticated
   const { data: portfolio } = trpc.portfolio.get.useQuery(undefined, {

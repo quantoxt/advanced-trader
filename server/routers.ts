@@ -304,9 +304,9 @@ export const appRouter = router({
           symbol: input.symbol,
           action: signal.action,
           price: signal.price.toString(),
-          confidence: signal.confidence.toString(),
+          confidence: Math.round(signal.confidence).toString(),
           indicators: JSON.stringify(signal.indicators),
-          sentiment: sentiment.score.toString(),
+          sentiment: Math.round(sentiment.score).toString(),
           executed: "pending",
         });
         
@@ -680,7 +680,41 @@ export const appRouter = router({
       }),
   }),
   
-  // TODO: add more feature routers here, e.g.
+  // Automation Engine
+  automation: router({
+    start: protectedProcedure
+      .input(z.object({
+        accountBalance: z.number().optional(),
+        riskTolerance: z.enum(["conservative", "moderate", "aggressive"]).default("moderate"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getAutomationEngine } = await import("./trading/automationEngine");
+        const engine = getAutomationEngine(ctx.user.id);
+        
+        const accountBalance = input.accountBalance || 100000; // Default to demo balance
+        const result = await engine.start(accountBalance, input.riskTolerance);
+        
+        return result;
+      }),
+    
+    stop: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { getAutomationEngine } = await import("./trading/automationEngine");
+        const engine = getAutomationEngine(ctx.user.id);
+        
+        return engine.stop();
+      }),
+    
+    status: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getAutomationEngine } = await import("./trading/automationEngine");
+        const engine = getAutomationEngine(ctx.user.id);
+        
+        return engine.getStatus();
+      }),
+  }),
+
+  // TODO: add feature routers here, e.g.
   // todo: router({
   //   list: protectedProcedure.query(({ ctx }) =>
   //     db.getUserTodos(ctx.user.id)
