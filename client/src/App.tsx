@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Strategies from "./pages/Strategies";
 import Signals from "./pages/Signals";
 import BrokerConnect from "./pages/BrokerConnect";
+import RiskManagement from "./pages/RiskManagement";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/strategies"} component={Strategies} />
       <Route path={"/signals"} component={Signals} />
       <Route path={"/broker"} component={BrokerConnect} />
+      <Route path={"/risk"} component={RiskManagement} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

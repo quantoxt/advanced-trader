@@ -317,7 +317,7 @@ export default function Home() {
                 </Link>
               </Button>
               <Button asChild className="w-full justify-start" variant="outline">
-                <Link href="/brokers">
+                <Link href="/broker">
                   <Activity className="mr-2 h-4 w-4" />
                   Connect Broker
                 </Link>
