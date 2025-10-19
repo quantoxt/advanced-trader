@@ -38,9 +38,22 @@ export default function Home() {
   }, [isAuthenticated, autoStarted, mounted, automationStatus.data]);
 
   // Fetch user data if authenticated
-  const { data: portfolio } = trpc.portfolio.get.useQuery(undefined, {
+  const { data: portfolio, refetch: refetchPortfolio } = trpc.portfolio.get.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+  
+  const syncMT5 = trpc.portfolio.syncWithMT5.useMutation();
+  
+  // Auto-sync portfolio with MT5 on load
+  useEffect(() => {
+    if (isAuthenticated && mounted) {
+      syncMT5.mutate(undefined, {
+        onSuccess: () => {
+          refetchPortfolio();
+        },
+      });
+    }
+  }, [isAuthenticated, mounted]);
 
   const { data: strategies } = trpc.strategies.list.useQuery(undefined, {
     enabled: isAuthenticated,

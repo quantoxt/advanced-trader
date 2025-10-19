@@ -7,17 +7,17 @@
 import { getDb } from "../db";
 import { generateIndividualPairStrategies } from "./pairStrategyGenerator";
 import { generateTradingSignals } from "./autoTrader";
-import { MT5Integration } from "./mt5Integration";
+import { MT5WebAPI } from "./mt5WebAPI";
 
 export class AutomationEngine {
   private isRunning: boolean = false;
   private signalInterval: NodeJS.Timeout | null = null;
-  private mt5: MT5Integration;
+  private mt5: MT5WebAPI;
   private userId: string;
   
   constructor(userId: string) {
     this.userId = userId;
-    this.mt5 = new MT5Integration();
+    this.mt5 = new MT5WebAPI();
   }
 
   /**
