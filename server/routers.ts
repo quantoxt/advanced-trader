@@ -297,7 +297,7 @@ export const appRouter = router({
       }),
   }),
   
-  // Broker Connections
+  // Broker Connections (MT5 Integration)
   brokers: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
@@ -305,6 +305,154 @@ export const appRouter = router({
       const { brokerConnections } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       return db.select().from(brokerConnections).where(eq(brokerConnections.userId, ctx.user.id));
+    }),
+
+    // Connect to MT5 broker account
+    connectMT5: protectedProcedure
+      .input(z.object({
+        login: z.number(),
+        password: z.string(),
+        server: z.string(),
+        broker: z.string().default("ACY Securities"),
+        accountType: z.enum(["demo", "live"]).default("demo"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getMT5Instance, validateMT5Credentials } = await import("./trading/mt5Integration");
+        
+        // Validate credentials
+        const validation = validateMT5Credentials({
+          login: input.login,
+          password: input.password,
+          server: input.server,
+          broker: input.broker,
+        });
+        
+        if (!validation.valid) {
+          throw new Error(validation.error || "Invalid MT5 credentials");
+        }
+        
+        // Connect to MT5
+        const mt5 = getMT5Instance();
+        const connected = await mt5.connect({
+          login: input.login,
+          password: input.password,
+          server: input.server,
+          broker: input.broker,
+        });
+        
+        if (!connected) {
+          throw new Error("Failed to connect to MT5. Please check your credentials.");
+        }
+        
+        // Get account info
+        const accountInfo = await mt5.getAccountInfo();
+        if (!accountInfo) {
+          throw new Error("Connected but failed to retrieve account information.");
+        }
+        
+        // Save connection to database
+        const db = await getDb();
+        if (db) {
+          const { brokerConnections } = await import("../drizzle/schema");
+          const id = `broker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await db.insert(brokerConnections).values({
+            id,
+            userId: ctx.user.id,
+            broker: "mt5" as const,
+            accountId: input.login.toString(),
+            status: "connected",
+          });
+        }
+        
+        return {
+          success: true,
+          connected: true,
+          account: accountInfo,
+        };
+      }),
+
+    // Get MT5 account status and balance
+    getMT5Status: protectedProcedure.query(async ({ ctx }) => {
+      const { getMT5Instance } = await import("./trading/mt5Integration");
+      const mt5 = getMT5Instance();
+      
+      if (!mt5.isConnected()) {
+        return {
+          connected: false,
+          message: "Not connected to MT5. Please connect your account first.",
+        };
+      }
+      
+      const accountInfo = await mt5.getAccountInfo();
+      const positions = await mt5.getPositions();
+      
+      return {
+        connected: true,
+        account: accountInfo,
+        positions: positions,
+        positionCount: positions.length,
+      };
+    }),
+
+    // Execute trade via MT5
+    executeMT5Trade: protectedProcedure
+      .input(z.object({
+        symbol: z.string(),
+        action: z.enum(["buy", "sell"]),
+        volume: z.number(),
+        stopLoss: z.number().optional(),
+        takeProfit: z.number().optional(),
+        comment: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getMT5Instance } = await import("./trading/mt5Integration");
+        const mt5 = getMT5Instance();
+        
+        if (!mt5.isConnected()) {
+          throw new Error("Not connected to MT5. Please connect your account first.");
+        }
+        
+        const result = await mt5.executeTrade({
+          action: input.action,
+          symbol: input.symbol,
+          volume: input.volume,
+          stopLoss: input.stopLoss,
+          takeProfit: input.takeProfit,
+          comment: input.comment || "Auto trading bot",
+        });
+        
+        if (!result.success) {
+          throw new Error(result.error || "Trade execution failed");
+        }
+        
+        // Log trade to database
+        const db = await getDb();
+        if (db) {
+          const { tradingSignals } = await import("../drizzle/schema");
+          const id = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await db.insert(tradingSignals).values({
+            id,
+            strategyId: "mt5_manual",
+            symbol: input.symbol,
+            action: input.action,
+            price: result.price?.toString() || "0",
+            confidence: "100",
+            executed: "executed",
+          });
+        }
+        
+        return result;
+      }),
+
+    // Disconnect from MT5
+    disconnectMT5: protectedProcedure.mutation(async ({ ctx }) => {
+      const { getMT5Instance } = await import("./trading/mt5Integration");
+      const mt5 = getMT5Instance();
+      await mt5.disconnect();
+      
+      return { success: true, message: "Disconnected from MT5" };
     }),
     
     add: protectedProcedure
@@ -318,16 +466,15 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         const { brokerConnections } = await import("../drizzle/schema");
-        
         const id = `broker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await db.insert(brokerConnections).values({
           id,
           userId: ctx.user.id,
           broker: input.broker,
           accountId: input.accountId,
-          apiKey: input.apiKey,
-          apiSecret: input.apiSecret,
-          status: "disconnected",
+          apiKey: input.apiKey || null,
+          apiSecret: input.apiSecret || null,
+          status: "connected",
         });
         return { id, success: true };
       }),
