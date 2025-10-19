@@ -88,19 +88,19 @@ export default function Signals() {
             </Link>
             <div className="hidden md:flex gap-4">
               <Link href="/">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Dashboard</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Dashboard</span>
               </Link>
               <Link href="/strategies">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Strategies</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Strategies</span>
               </Link>
               <Link href="/signals">
-                <a className="text-sm font-medium text-primary">Signals</a>
+                <span className="text-sm font-medium text-primary cursor-pointer">Signals</span>
               </Link>
               <Link href="/portfolio">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Portfolio</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Portfolio</span>
               </Link>
               <Link href="/risk">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Risk</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Risk</span>
               </Link>
             </div>
           </div>

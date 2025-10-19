@@ -206,20 +206,20 @@ export default function Home() {
               </span>
             </div>
             <div className="hidden md:flex gap-4">
-              <Link href="/dashboard">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Dashboard</a>
+              <Link href="/">
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Dashboard</span>
               </Link>
               <Link href="/strategies">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Strategies</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Strategies</span>
               </Link>
               <Link href="/signals">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Signals</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Signals</span>
               </Link>
               <Link href="/portfolio">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Portfolio</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Portfolio</span>
               </Link>
               <Link href="/risk">
-                <a className="text-sm font-medium hover:text-primary transition-colors">Risk</a>
+                <span className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">Risk</span>
               </Link>
             </div>
           </div>

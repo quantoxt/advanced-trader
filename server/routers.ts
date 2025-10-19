@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { z } from "zod";
 
 export const appRouter = router({
   system: systemRouter,
@@ -29,10 +30,10 @@ export const appRouter = router({
     }),
     
     create: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         name: z.string(),
         type: z.enum(["momentum", "mean_reversion", "breakout", "ml_based", "sentiment", "arbitrage"]),
-        parameters: z.record(z.any()),
+        parameters: z.record(z.string(), z.any()),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -51,11 +52,11 @@ export const appRouter = router({
       }),
     
     update: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         id: z.string(),
         name: z.string().optional(),
         status: z.enum(["active", "paused", "backtesting"]).optional(),
-        parameters: z.record(z.any()).optional(),
+        parameters: z.record(z.string(), z.any()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -79,7 +80,7 @@ export const appRouter = router({
       }),
     
     delete: protectedProcedure
-      .input((z: any) => z.object({ id: z.string() }))
+      .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
@@ -96,7 +97,7 @@ export const appRouter = router({
   // Trading Signals
   signals: router({
     list: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         strategyId: z.string().optional(),
         limit: z.number().default(50),
       }))
@@ -114,7 +115,7 @@ export const appRouter = router({
       }),
     
     generate: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         strategyId: z.string(),
         symbol: z.string(),
       }))
@@ -174,7 +175,7 @@ export const appRouter = router({
     }),
     
     data: publicProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         symbol: z.string(),
         timeframe: z.string().default("1h"),
         limit: z.number().default(100),
@@ -185,14 +186,14 @@ export const appRouter = router({
       }),
     
     sentiment: publicProcedure
-      .input((z: any) => z.object({ symbol: z.string() }))
+      .input(z.object({ symbol: z.string() }))
       .query(async ({ input }) => {
         const { getMarketSentiment } = await import("./trading/marketData");
         return getMarketSentiment(input.symbol);
       }),
     
     regime: publicProcedure
-      .input((z: any) => z.object({ symbol: z.string() }))
+      .input(z.object({ symbol: z.string() }))
       .query(async ({ input }) => {
         const { getHistoricalData, detectMarketRegime } = await import("./trading/marketData");
         const data = await getHistoricalData(input.symbol, "1h", 100);
@@ -227,7 +228,7 @@ export const appRouter = router({
     }),
     
     update: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         balance: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -273,7 +274,7 @@ export const appRouter = router({
     }),
     
     updateRules: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         maxPositionSize: z.string().optional(),
         maxDailyLoss: z.string().optional(),
         maxDrawdown: z.string().optional(),
@@ -307,7 +308,7 @@ export const appRouter = router({
     }),
     
     add: protectedProcedure
-      .input((z: any) => z.object({
+      .input(z.object({
         broker: z.enum(["mt4", "mt5", "interactive_brokers", "alpaca", "binance", "coinbase"]),
         accountId: z.string(),
         apiKey: z.string().optional(),
