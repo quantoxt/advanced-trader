@@ -23,7 +23,10 @@ export const tradingStrategies = mysqlTable("tradingStrategies", {
   id: varchar("id", { length: 64 }).primaryKey(),
   userId: varchar("userId", { length: 64 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
-  type: mysqlEnum("type", ["momentum", "mean_reversion", "breakout", "ml_based", "sentiment", "arbitrage"]).notNull(),
+  type: mysqlEnum("type", ["momentum", "mean_reversion", "breakout", "ml_based", "sentiment", "arbitrage", "scalping", "swing"]).notNull(),
+  algorithm: varchar("algorithm", { length: 100 }),
+  symbols: text("symbols"), // Comma-separated list
+  timeframe: varchar("timeframe", { length: 10 }),
   status: mysqlEnum("status", ["active", "paused", "backtesting"]).default("paused").notNull(),
   parameters: text("parameters").notNull(), // JSON string
   performance: text("performance"), // JSON string with metrics

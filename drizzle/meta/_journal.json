@@ -15,6 +15,13 @@
       "when": 1760856020455,
       "tag": "0001_certain_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1760858148631,
+      "tag": "0002_naive_storm",
+      "breakpoints": true
     }
   ]
 }

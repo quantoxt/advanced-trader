@@ -19,6 +19,153 @@ export const appRouter = router({
     }),
   }),
 
+  // Auto Strategy Generation
+  autoGenerate: router({
+    generateStrategies: protectedProcedure
+      .input(z.object({
+        riskTolerance: z.enum(["conservative", "moderate", "aggressive"]).default("moderate"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { generateOptimalStrategies } = await import("./trading/strategyGenerator");
+        
+        // Get account balance from portfolio or MT5
+        const db = await getDb();
+        let accountBalance = 10000; // Default
+        
+        if (db) {
+          const { portfolios } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const portfolio = await db.select().from(portfolios).where(eq(portfolios.userId, ctx.user.id)).limit(1);
+          if (portfolio.length > 0) {
+            accountBalance = parseFloat(portfolio[0].balance);
+          }
+        }
+        
+        // Generate optimal strategies
+        const strategies = await generateOptimalStrategies(accountBalance, input.riskTolerance);
+        
+        // Save strategies to database
+        if (db) {
+          const { tradingStrategies } = await import("../drizzle/schema");
+          for (const strategy of strategies) {
+            const typeMapping: Record<string, any> = {
+              momentum: "momentum",
+              meanReversion: "mean_reversion",
+              breakout: "breakout",
+              scalping: "scalping",
+              swing: "swing",
+              mlBased: "ml_based",
+            };
+            await db.insert(tradingStrategies).values({
+              id: strategy.id,
+              userId: ctx.user.id,
+              name: strategy.name,
+              type: typeMapping[strategy.algorithm] || "momentum",
+              algorithm: strategy.algorithm,
+              symbols: strategy.symbols.join(","),
+              timeframe: strategy.timeframe,
+              parameters: JSON.stringify(strategy.parameters),
+              status: "active",
+            });
+          }
+        }
+        
+        return {
+          success: true,
+          strategies,
+          message: `Generated ${strategies.length} optimal trading strategies`,
+        };
+      }),
+
+    autoGenerateSignals: protectedProcedure
+      .input(z.object({
+        strategyId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { generateTradingSignals } = await import("./trading/autoTrader");
+        
+        // Get strategy from database
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        
+        const { tradingStrategies } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const strategyResult = await db.select().from(tradingStrategies)
+          .where(eq(tradingStrategies.id, input.strategyId)).limit(1);
+        
+        if (strategyResult.length === 0) {
+          throw new Error("Strategy not found");
+        }
+        
+        const strategy = strategyResult[0];
+        const symbols = strategy.symbols ? strategy.symbols.split(",") : [];
+        const parameters = JSON.parse(strategy.parameters);
+        const algorithm = strategy.algorithm || strategy.type;
+        
+        // Generate signals
+        const signals = await generateTradingSignals(
+          strategy.id,
+          symbols,
+          algorithm,
+          parameters
+        );
+        
+        // Save signals to database
+        const { tradingSignals } = await import("../drizzle/schema");
+        for (const signal of signals) {
+          await db.insert(tradingSignals).values({
+            id: signal.id,
+            strategyId: signal.strategyId,
+            symbol: signal.symbol,
+            action: signal.action,
+            price: signal.price.toString(),
+            confidence: signal.confidence.toString(),
+            indicators: JSON.stringify(signal.indicators),
+            executed: signal.confidence >= 80 ? "executed" : "pending",
+          });
+        }
+        
+        return {
+          success: true,
+          signals,
+          highConfidenceCount: signals.filter(s => s.confidence >= 80).length,
+        };
+      }),
+
+    startAutoTrading: protectedProcedure.mutation(async ({ ctx }) => {
+      const { autoTradingEngine } = await import("./trading/autoTrader");
+      const { getMT5Instance } = await import("./trading/mt5Integration");
+      
+      const mt5 = getMT5Instance();
+      const mt5Connected = mt5.isConnected();
+      
+      // Get active strategies
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      
+      const { tradingStrategies } = await import("../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const strategies = await db.select().from(tradingStrategies)
+        .where(and(
+          eq(tradingStrategies.userId, ctx.user.id),
+          eq(tradingStrategies.status, "active")
+        ));
+      
+      const result = await autoTradingEngine.start(strategies, mt5Connected);
+      return result;
+    }),
+
+    stopAutoTrading: protectedProcedure.mutation(async () => {
+      const { autoTradingEngine } = await import("./trading/autoTrader");
+      return autoTradingEngine.stop();
+    }),
+
+    getAutoTradingStatus: protectedProcedure.query(async () => {
+      const { autoTradingEngine } = await import("./trading/autoTrader");
+      return autoTradingEngine.getStatus();
+    }),
+  }),
+
   // Trading Strategies
   strategies: router({
     list: protectedProcedure.query(async ({ ctx }) => {
@@ -203,6 +350,59 @@ export const appRouter = router({
   
   // Portfolio Management
   portfolio: router({
+    syncWithMT5: protectedProcedure.mutation(async ({ ctx }) => {
+      const { getMT5Instance } = await import("./trading/mt5Integration");
+      const mt5 = getMT5Instance();
+      
+      if (!mt5.isConnected()) {
+        throw new Error("MT5 not connected. Please connect your broker account first.");
+      }
+      
+      const accountInfo = await mt5.getAccountInfo();
+      if (!accountInfo) {
+        throw new Error("Failed to retrieve MT5 account information");
+      }
+      
+      // Update portfolio with MT5 balance
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      
+      const { portfolios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const existingPortfolio = await db.select().from(portfolios)
+        .where(eq(portfolios.userId, ctx.user.id)).limit(1);
+      
+      if (existingPortfolio.length > 0) {
+        // Update existing portfolio
+        await db.update(portfolios)
+          .set({
+            balance: accountInfo.balance.toString(),
+            equity: accountInfo.equity.toString(),
+            updatedAt: new Date(),
+          })
+          .where(eq(portfolios.userId, ctx.user.id));
+      } else {
+        // Create new portfolio
+        const id = `portfolio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.insert(portfolios).values({
+          id,
+          userId: ctx.user.id,
+          balance: accountInfo.balance.toString(),
+          equity: accountInfo.equity.toString(),
+          totalPnl: accountInfo.profit.toString(),
+          winRate: "0",
+        });
+      }
+      
+      return {
+        success: true,
+        balance: accountInfo.balance,
+        equity: accountInfo.equity,
+        profit: accountInfo.profit,
+      };
+    }),
+
     get: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return null;

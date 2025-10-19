@@ -322,6 +322,12 @@ export default function Home() {
                   Connect Broker
                 </Link>
               </Button>
+              <Button asChild className="w-full justify-start" variant="default">
+                <Link href="/auto">
+                  <Zap className="mr-2 h-4 w-4" />
+                  Auto Trading
+                </Link>
+              </Button>
             </CardContent>
           </Card>
 
