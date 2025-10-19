@@ -7,17 +7,18 @@
 import { getDb } from "../db";
 import { generateIndividualPairStrategies } from "./pairStrategyGenerator";
 import { generateTradingSignals } from "./autoTrader";
-import { MT5WebAPI } from "./mt5WebAPI";
+import { MT5WindowsWrapper } from "./mt5WindowsWrapper";
+import { isMarketOpen, getMarketStatus } from "./marketHours";
 
 export class AutomationEngine {
   private isRunning: boolean = false;
   private signalInterval: NodeJS.Timeout | null = null;
-  private mt5: MT5WebAPI;
+  private mt5: MT5WindowsWrapper;
   private userId: string;
   
   constructor(userId: string) {
     this.userId = userId;
-    this.mt5 = new MT5WebAPI();
+    this.mt5 = new MT5WindowsWrapper();
   }
 
   /**
@@ -225,8 +226,17 @@ export class AutomationEngine {
 
     for (const strategy of strategies) {
       try {
-        // Generate signal for this strategy
+        // Check if market is open for this symbol
         const symbols = strategy.symbol ? [strategy.symbol] : (strategy.symbols ? strategy.symbols.split(',') : []);
+        const symbol = symbols[0];
+        
+        const marketStatus = isMarketOpen(symbol);
+        if (!marketStatus.isOpen) {
+          console.log(`[Automation] ⏸️  Skipping ${symbol} - ${marketStatus.reason}`);
+          continue;
+        }
+        
+        // Generate signal for this strategy
         const params = JSON.parse(strategy.parameters || "{}");
         const signals = await generateTradingSignals(strategy.id, symbols, strategy.algorithm || 'momentum', params);
         
@@ -330,7 +340,11 @@ export class AutomationEngine {
    * Connect to MT5 broker
    */
   async connectMT5(credentials: { login: number; password: string; server: string; broker?: string }) {
-    const connected = await this.mt5.connect(credentials);
+    const connected = await this.mt5.connect({
+      login: credentials.login.toString(),
+      password: credentials.password,
+      server: credentials.server,
+    });
     if (connected) {
       console.log('[Automation] MT5 connected successfully');
     }
