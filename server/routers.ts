@@ -26,7 +26,7 @@ export const appRouter = router({
         riskTolerance: z.enum(["conservative", "moderate", "aggressive"]).default("moderate"),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { generateOptimalStrategies } = await import("./trading/strategyGenerator");
+        const { generateIndividualPairStrategies } = await import("./trading/pairStrategyGenerator");
         
         // Get account balance from portfolio or MT5
         const db = await getDb();
@@ -41,8 +41,8 @@ export const appRouter = router({
           }
         }
         
-        // Generate optimal strategies
-        const strategies = await generateOptimalStrategies(accountBalance, input.riskTolerance);
+        // Generate individual strategies for each pair
+        const strategies = await generateIndividualPairStrategies(accountBalance, input.riskTolerance);
         
         // Save strategies to database
         if (db) {
@@ -62,7 +62,7 @@ export const appRouter = router({
               name: strategy.name,
               type: typeMapping[strategy.algorithm] || "momentum",
               algorithm: strategy.algorithm,
-              symbols: strategy.symbols.join(","),
+              symbols: strategy.symbol,
               timeframe: strategy.timeframe,
               parameters: JSON.stringify(strategy.parameters),
               status: "active",

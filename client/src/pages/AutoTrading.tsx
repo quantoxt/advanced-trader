@@ -102,8 +102,13 @@ export default function AutoTrading() {
       <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Bot className="h-5 w-5" />
+                Home
+              </Button>
+            </Link>
             <div className="flex items-center gap-2">
-              <Bot className="h-8 w-8 text-primary" />
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Auto Trading
               </span>
@@ -188,7 +193,7 @@ export default function AutoTrading() {
               AI Strategy Generator
             </CardTitle>
             <CardDescription>
-              Automatically generate optimal trading strategies based on your account balance and risk tolerance
+              Automatically generate individual optimized strategies for EACH trading pair (15 pairs total) based on the best techniques for that specific pair
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -227,7 +232,7 @@ export default function AutoTrading() {
                   ) : (
                     <>
                       <Zap className="mr-2 h-4 w-4" />
-                      Generate 6 Optimal Strategies
+                      Generate 15 Individual Strategies
                     </>
                   )}
                 </Button>
@@ -240,12 +245,10 @@ export default function AutoTrading() {
                 What You'll Get:
               </h4>
               <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• <strong>Forex Momentum Master</strong> - Major pairs (EURUSD, GBPUSD, etc.)</li>
-                <li>• <strong>Crypto Volatility Hunter</strong> - High-volatility crypto (BTC, ETH, SOL)</li>
-                <li>• <strong>Mean Reversion Pro</strong> - Forex + stable crypto</li>
-                <li>• <strong>Forex Scalper Elite</strong> - Quick profits on major pairs</li>
-                <li>• <strong>AI Prediction Engine</strong> - ML-based multi-asset strategy</li>
-                <li>• <strong>Swing Trade Champion</strong> - Multi-day positions</li>
+                <li>• <strong>7 Forex Strategies</strong> - Individual strategies for EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, USDCAD, NZDUSD</li>
+                <li>• <strong>8 Crypto Strategies</strong> - Individual strategies for BTC, ETH, BNB, SOL, ADA, XRP, DOGE, MATIC</li>
+                <li>• <strong>15 Total Strategies</strong> - Each pair gets its own optimized algorithm (momentum, breakout, scalping, swing, ML, etc.)</li>
+                <li>• <strong>Best Techniques</strong> - Algorithm selected based on pair volatility, trend, and liquidity characteristics</li>
               </ul>
             </div>
           </CardContent>
