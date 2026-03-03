@@ -139,10 +139,8 @@ export class MT5WindowsWrapper {
       return { success: false, error: 'MT5 not connected. Please connect your broker account first.' };
     }
 
-    // Re-login since each Python process is new
-    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
-
-    return await this.callPython('account_info');
+    // Pass credentials to account_info for re-login if needed
+    return await this.callPython('account_info', this.credentials.login, this.credentials.password, this.credentials.server);
   }
 
   /**
@@ -153,10 +151,8 @@ export class MT5WindowsWrapper {
       return { success: false, error: 'MT5 not connected' };
     }
 
-    // Re-login since each Python process is new
-    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
-
-    return await this.callPython('get_price', symbol);
+    // Pass credentials to ensure we're logged in (get_price, login, password, server)
+    return await this.callPython('get_price', symbol, this.credentials.login, this.credentials.password, this.credentials.server);
   }
 
   /**
@@ -174,9 +170,7 @@ export class MT5WindowsWrapper {
       return { success: false, error: 'MT5 not connected' };
     }
 
-    // Re-login since each Python process is new
-    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
-
+    // Pass credentials to ensure we're logged in (execute_trade, action, symbol, volume, sl, tp, comment, login, password, server)
     return await this.callPython(
       'execute_trade',
       params.action,
@@ -184,7 +178,10 @@ export class MT5WindowsWrapper {
       params.volume.toString(),
       (params.stopLoss || 0).toString(),
       (params.takeProfit || 0).toString(),
-      params.comment || ''
+      params.comment || '',
+      this.credentials.login,
+      this.credentials.password,
+      this.credentials.server
     );
   }
 
@@ -196,10 +193,8 @@ export class MT5WindowsWrapper {
       return { success: false, error: 'MT5 not connected' };
     }
 
-    // Re-login since each Python process is new
-    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
-
-    return await this.callPython('get_positions');
+    // Pass credentials to ensure we're logged in (get_positions, login, password, server)
+    return await this.callPython('get_positions', this.credentials.login, this.credentials.password, this.credentials.server);
   }
 
   /**
@@ -210,10 +205,8 @@ export class MT5WindowsWrapper {
       return { success: false, error: 'MT5 not connected' };
     }
 
-    // Re-login since each Python process is new
-    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
-
-    return await this.callPython('close_position', ticket.toString());
+    // Pass credentials to ensure we're logged in (close_position, ticket, login, password, server)
+    return await this.callPython('close_position', ticket.toString(), this.credentials.login, this.credentials.password, this.credentials.server);
   }
 
   /**
