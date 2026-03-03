@@ -215,7 +215,7 @@ def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment=""
             "magic": 234000,
             "comment": clean_comment if clean_comment else "Trade",
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_BY_SERVER,
+            "type_filling": mt5.ORDER_FILLING_FOK,
         }
 
         # Send trade request
@@ -294,7 +294,7 @@ def close_position(ticket, login=None, password=None, server=None):
         "magic": 234000,
         "comment": "Close position",
         "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_BY_SERVER,
+        "type_filling": mt5.ORDER_FILLING_FOK,
     }
     
     result = mt5.order_send(request)
