@@ -30,11 +30,11 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
-    if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
-      );
+    // OAuth is optional - trading bot works without it
+    if (ENV.oAuthServerUrl) {
+      console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+    } else {
+      console.log("[OAuth] Not configured - running in standalone mode (no login required)");
     }
   }
 
@@ -257,6 +257,27 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
+    // If OAuth is not configured, use a default demo user
+    if (!ENV.oAuthServerUrl) {
+      console.log("[Auth] OAuth not configured - using demo user");
+      const demoUserId = "demo-user";
+      let user = await db.getUser(demoUserId);
+      if (!user) {
+        await db.upsertUser({
+          id: demoUserId,
+          name: "Demo Trader",
+          email: "demo@trading-bot.local",
+          loginMethod: "demo",
+          lastSignedIn: new Date(),
+        });
+        user = await db.getUser(demoUserId);
+      }
+      if (!user) {
+        throw ForbiddenError("Failed to create demo user");
+      }
+      return user;
+    }
+
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
