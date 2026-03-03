@@ -341,9 +341,9 @@ async function getCurrentPrice(symbol: string): Promise<number> {
       return marketPrice.price;
     }
 
-    console.warn(`[Price] No real data for ${symbol}, using fallback`);
+    // console.warn(`[Price] No real data for ${symbol}, using fallback`);
   } catch (error) {
-    console.error(`[Price] Error fetching ${symbol}:`, error);
+    // console.error(`[Price] Error fetching ${symbol}:`, error);
   }
 
   // Fallback prices only if API fails

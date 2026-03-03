@@ -70,7 +70,7 @@ export class RealMarketDataService implements MarketDataService {
       const data = await response.json();
       return data;
     } catch (error: any) {
-      console.error(`[Yahoo Finance API Error] ${error.message}`);
+      // console.error(`[Yahoo Finance API Error] ${error.message}`);
       return null;
     }
   }
@@ -132,10 +132,10 @@ export class RealMarketDataService implements MarketDataService {
         }
       }
 
-      console.warn(`[Market Data] No data found for ${symbol}`);
+      // console.warn(`[Market Data] No data found for ${symbol}`);
       return null;
     } catch (error: any) {
-      console.error(`[Market Data] Error fetching ${symbol}:`, error.message);
+      // console.error(`[Market Data] Error fetching ${symbol}:`, error.message);
       return null;
     }
   }

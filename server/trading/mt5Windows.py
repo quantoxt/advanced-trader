@@ -184,21 +184,24 @@ def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment=""
     """Execute a trade on MT5"""
     if not ensure_login_with_creds(login, password, server):
         return {"success": False, "error": "Not logged in to MT5"}
-    
+
     # Get symbol info
     symbol_info = mt5.symbol_info(symbol)
     if symbol_info is None:
         return {"success": False, "error": f"Symbol {symbol} not found"}
-    
+
     # Enable symbol if not enabled
     if not symbol_info.visible:
         if not mt5.symbol_select(symbol, True):
             return {"success": False, "error": f"Failed to select {symbol}"}
-    
+
+    # Sanitize comment: remove special chars and limit length (MT5 max is typically 31 chars)
+    clean_comment = comment.replace('%', '').replace('(', '').replace(')', '').replace('[', '').replace(']', '')[:23]
+
     # Prepare trade request
     order_type = mt5.ORDER_TYPE_BUY if action == "buy" else mt5.ORDER_TYPE_SELL
     price = mt5.symbol_info_tick(symbol).ask if action == "buy" else mt5.symbol_info_tick(symbol).bid
-    
+
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
@@ -209,11 +212,11 @@ def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment=""
         "tp": float(take_profit) if take_profit else 0.0,
         "deviation": 20,
         "magic": 234000,
-        "comment": comment,
+        "comment": clean_comment if clean_comment else "Trade",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
-    
+
     # Send trade request
     result = mt5.order_send(request)
     
