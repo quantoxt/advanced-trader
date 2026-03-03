@@ -16,7 +16,9 @@ export default function BrokerConnect() {
   const { user } = useAuth();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [server, setServer] = useState("ACYSecurities-Live");
+  const [server, setServer] = useState("MetaQuotes-Demo");
+  const [customServer, setCustomServer] = useState("");
+  const [useCustomServer, setUseCustomServer] = useState(false);
   const [accountType, setAccountType] = useState<"demo" | "live">("demo");
 
   const utils = trpc.useUtils();
@@ -44,7 +46,8 @@ export default function BrokerConnect() {
   });
 
   const handleConnect = () => {
-    if (!login || !password || !server) {
+    const serverToUse = useCustomServer ? customServer : server;
+    if (!login || !password || !serverToUse) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -58,8 +61,8 @@ export default function BrokerConnect() {
     connectMutation.mutate({
       login: loginNumber,
       password,
-      server,
-      broker: "ACY Securities",
+      server: serverToUse,
+      broker: "MT5", // Generic - works with any MT5 broker
       accountType,
     });
   };
@@ -120,7 +123,7 @@ export default function BrokerConnect() {
                   MT5 Account Connection
                 </CardTitle>
                 <CardDescription>
-                  Connect your ACY Securities MT5 account to start automated trading
+                  Connect your MT5 account (any broker) to start automated trading
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -182,21 +185,46 @@ export default function BrokerConnect() {
 
                   <div>
                     <Label htmlFor="server">MT5 Server</Label>
-                    <Select value={server} onValueChange={setServer} disabled={mt5Status?.connected}>
+                    <Select value={useCustomServer ? "custom" : server} onValueChange={(v) => {
+                      if (v === "custom") {
+                        setUseCustomServer(true);
+                      } else {
+                        setUseCustomServer(false);
+                        setServer(v);
+                      }
+                    }} disabled={mt5Status?.connected}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ACYSecurities-Live">ACYSecurities-Live</SelectItem>
+                        <SelectItem value="MetaQuotes-Demo">MetaQuotes-Demo</SelectItem>
+                        <SelectItem value="MetaQuotes-Demo-Server">MetaQuotes-Demo-Server</SelectItem>
                         <SelectItem value="ACYSecurities-Demo">ACYSecurities-Demo</SelectItem>
-                        <SelectItem value="ACYSecurities-Live01">ACYSecurities-Live01</SelectItem>
-                        <SelectItem value="ACYSecurities-Live02">ACYSecurities-Live02</SelectItem>
+                        <SelectItem value="ACYSecurities-Live">ACYSecurities-Live</SelectItem>
+                        <SelectItem value="custom">Custom Server (type manually)</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Select your ACY Securities server. Check your MT5 platform if unsure.
+                      Select your MT5 server. Check your MT5 platform if unsure.
                     </p>
                   </div>
+
+                  {useCustomServer && (
+                    <div>
+                      <Label htmlFor="customServer">Custom Server Name</Label>
+                      <Input
+                        id="customServer"
+                        type="text"
+                        placeholder="e.g., MyBroker-Demo"
+                        value={customServer}
+                        onChange={(e) => setCustomServer(e.target.value)}
+                        disabled={mt5Status?.connected}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter the exact server name from your MT5 platform
+                      </p>
+                    </div>
+                  )}
 
                   {mt5Status?.connected ? (
                     <Button
@@ -232,12 +260,18 @@ export default function BrokerConnect() {
                 </div>
                 <div>
                   <strong className="text-primary">2. Password:</strong>
-                  <p className="text-muted-foreground">The password you set when creating your MT5 account. Contact ACY Securities support if forgotten.</p>
+                  <p className="text-muted-foreground">The password you set when creating your MT5 account. Contact your broker's support if forgotten.</p>
                 </div>
                 <div>
                   <strong className="text-primary">3. Server:</strong>
-                  <p className="text-muted-foreground">Shown in MT5 under "Tools" → "Options" → "Server" or in your account setup email</p>
+                  <p className="text-muted-foreground">Shown in MT5 under "Tools" → "Options" → "Server" tab, or when you first login to your account</p>
                 </div>
+                <Alert className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    <strong>Works with any MT5 broker:</strong> MetaQuotes, IC Markets, Pepperstone, FXCM, OANDA, etc. Select "Custom Server" if your broker isn't listed.
+                  </AlertDescription>
+                </Alert>
                 <Alert className="mt-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
