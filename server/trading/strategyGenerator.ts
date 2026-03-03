@@ -206,8 +206,8 @@ export async function generateOptimalStrategies(
     parameters: {
       ...ALGORITHM_CONFIGS.scalping.parameters,
       positionSize: calculatePositionSize(accountBalance, riskTolerance, 0.01),
-      stopLoss: 0.001,
-      takeProfit: 0.002,
+      stopLoss: 0.0005,  // 5 pips minimum for most brokers
+      takeProfit: 0.0015,  // 15 pips for better risk:reward
     },
     expectedReturn: 0.35, // 35% annually
     riskScore: 5,
@@ -242,8 +242,8 @@ export async function generateOptimalStrategies(
     parameters: {
       ...ALGORITHM_CONFIGS.swing.parameters,
       positionSize: calculatePositionSize(accountBalance, riskTolerance, 0.025),
-      stopLoss: 0.02,
-      takeProfit: 0.06,
+      stopLoss: 0.003,  // 30 pips minimum
+      takeProfit: 0.009,  // 90 pips (3:1 reward)
     },
     expectedReturn: 0.38, // 38% annually
     riskScore: 5,
