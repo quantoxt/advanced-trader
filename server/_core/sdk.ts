@@ -32,9 +32,9 @@ class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
     // OAuth is optional - trading bot works without it
     if (ENV.oAuthServerUrl) {
-      console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+      // console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
     } else {
-      console.log("[OAuth] Not configured - running in standalone mode (no login required)");
+      // console.log("[OAuth] Not configured - running in standalone mode (no login required)");
     }
   }
 
@@ -259,7 +259,7 @@ class SDKServer {
   async authenticateRequest(req: Request): Promise<User> {
     // If OAuth is not configured, use a default demo user
     if (!ENV.oAuthServerUrl) {
-      console.log("[Auth] OAuth not configured - using demo user");
+      // console.log("[Auth] OAuth not configured - using demo user");
       const demoUserId = "demo-user";
       let user = await db.getUser(demoUserId);
       if (!user) {

@@ -94,7 +94,7 @@ export class RealMarketDataService implements MarketDataService {
 
       const yahooSymbol = this.convertSymbol(symbol);
 
-      console.log(`[Market Data] Fetching FREE real price for ${symbol} (${yahooSymbol})`);
+      // console.log(`[Market Data] Fetching FREE real price for ${symbol} (${yahooSymbol})`);
 
       const data = await this.fetchYahooData(yahooSymbol);
 
@@ -127,7 +127,7 @@ export class RealMarketDataService implements MarketDataService {
             timestamp: Date.now(),
           });
 
-          console.log(`[Market Data] ${symbol}: ${isCrypto ? '$' : ''}${marketPrice.price.toFixed(isCrypto ? 2 : 5)}`);
+          // console.log(`[Market Data] ${symbol}: ${isCrypto ? '$' : ''}${marketPrice.price.toFixed(isCrypto ? 2 : 5)}`);
           return marketPrice;
         }
       }

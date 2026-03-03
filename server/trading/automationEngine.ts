@@ -7,18 +7,24 @@
 import { getDb } from "../db";
 import { generateIndividualPairStrategies } from "./pairStrategyGenerator";
 import { generateTradingSignals } from "./autoTrader";
-import { MT5WindowsWrapper } from "./mt5WindowsWrapper";
+import { getMT5Instance } from "./mt5Integration";
 import { isMarketOpen, getMarketStatus } from "./marketHours";
 
 export class AutomationEngine {
   private isRunning: boolean = false;
   private signalInterval: NodeJS.Timeout | null = null;
-  private mt5: MT5WindowsWrapper;
   private userId: string;
-  
+
   constructor(userId: string) {
     this.userId = userId;
-    this.mt5 = new MT5WindowsWrapper();
+    // Use the shared MT5 instance instead of creating a new wrapper
+  }
+
+  /**
+   * Get the shared MT5 instance
+   */
+  private getMT5() {
+    return getMT5Instance();
   }
 
   /**
@@ -248,7 +254,7 @@ export class AutomationEngine {
           const id = `signal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
           // Determine execution status
-          const isConnected = this.mt5.isConnected();
+          const isConnected = this.getMT5().isConnected();
           let executionStatus: "pending" | "executed" | "cancelled" = "pending";
           if (signal.confidence >= 80 && isConnected) {
             executionStatus = "executed";
@@ -288,34 +294,43 @@ export class AutomationEngine {
    */
   private async autoExecuteTrade(strategy: any, signal: any) {
     try {
-      if (!this.mt5.isConnected()) {
-        console.log('[Automation] MT5 not connected, skipping trade execution');
+      const mt5 = this.getMT5();
+
+      console.log(`[Automation] Checking MT5 connection before trade...`);
+      if (!mt5.isConnected()) {
+        console.warn('[Automation] MT5 not connected, skipping trade execution');
         return;
       }
+      console.log(`[Automation] MT5 connected, proceeding with trade execution`);
 
       const params = JSON.parse(strategy.parameters || "{}");
       const positionSize = params.positionSize || 0.01;
+      const symbol = strategy.symbol || strategy.symbols;
 
       const tradeRequest = {
         action: signal.action as "buy" | "sell",
-        symbol: strategy.symbol || strategy.symbols,
+        symbol: symbol,
         volume: positionSize,
         stopLoss: params.stopLoss,
         takeProfit: params.takeProfit,
         comment: `Auto: ${strategy.name} (${Math.round(signal.confidence)}%)`,
       };
 
-      const result = await this.mt5.executeTrade(tradeRequest);
-      
+      console.log(`[Automation] Executing trade: ${signal.action} ${symbol} x${positionSize} lots`);
+
+      const result = await mt5.executeTrade(tradeRequest);
+
+      console.log(`[Automation] Trade result:`, result);
+
       if (result.success) {
-        console.log(`[Automation] Trade executed: ${signal.action} ${tradeRequest.symbol} @ ${result.price}`);
-        
+        console.log(`[Automation] ✓ Trade executed: ${signal.action} ${tradeRequest.symbol} @ ${result.price} (ticket: ${result.ticket})`);
+
         // Save trade to database
         const db = await getDb();
         if (db) {
           const { trades } = await import("../../drizzle/schema");
           const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          
+
           await db.insert(trades).values({
             id: tradeId,
             userId: this.userId,
@@ -329,7 +344,7 @@ export class AutomationEngine {
           });
         }
       } else {
-        console.error(`[Automation] Trade failed: ${result.error}`);
+        console.error(`[Automation] ✗ Trade failed: ${result.error} (code: ${result.errorCode})`);
       }
     } catch (error) {
       console.error('[Automation] Failed to execute trade:', error);
@@ -340,7 +355,7 @@ export class AutomationEngine {
    * Connect to MT5 broker
    */
   async connectMT5(credentials: { login: number; password: string; server: string; broker?: string }) {
-    const connected = await this.mt5.connect({
+    const connected = await this.getMT5().connect({
       login: credentials.login.toString(),
       password: credentials.password,
       server: credentials.server,
@@ -358,7 +373,7 @@ export class AutomationEngine {
     try {
       return {
         isRunning: this.isRunning,
-        mt5Connected: this.mt5.isConnected(),
+        mt5Connected: this.getMT5().isConnected(),
       };
     } catch (error: any) {
       console.error('[Automation] Error getting status:', error?.message || error);

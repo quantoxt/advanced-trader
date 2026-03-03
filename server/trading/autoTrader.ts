@@ -335,17 +335,17 @@ async function getCurrentPrice(symbol: string): Promise<number> {
   try {
     const marketDataService = getMarketDataService();
     const marketPrice = await marketDataService.getPrice(symbol);
-    
+
     if (marketPrice && marketPrice.price > 0) {
-      console.log(`[Price] ${symbol}: $${marketPrice.price.toFixed(2)} (REAL)`);
+      // console.log(`[Price] ${symbol}: $${marketPrice.price.toFixed(2)} (REAL)`);
       return marketPrice.price;
     }
-    
+
     console.warn(`[Price] No real data for ${symbol}, using fallback`);
   } catch (error) {
     console.error(`[Price] Error fetching ${symbol}:`, error);
   }
-  
+
   // Fallback prices only if API fails
   const basePrices: Record<string, number> = {
     // Forex majors

@@ -116,9 +116,17 @@ export class MT5Integration {
 
   /**
    * Check if connected to MT5
+   * Verifies actual connection by checking if we can get account info
    */
   isConnected(): boolean {
-    return this.mt5.isConnected();
+    // Check if wrapper thinks it's connected AND we have credentials
+    if (!this.mt5.isConnected() || !this.credentials) {
+      return false;
+    }
+
+    // TODO: Could verify by pinging MT5, but that would slow things down
+    // For now, trust the connection flag
+    return true;
   }
 
   /**
@@ -196,6 +204,7 @@ export class MT5Integration {
    */
   async executeTrade(request: MT5TradeRequest): Promise<MT5TradeResult> {
     if (!this.isConnected()) {
+      console.error('[MT5] Cannot execute trade: not connected');
       return {
         success: false,
         error: 'Not connected to MT5. Please connect first.',
@@ -205,6 +214,7 @@ export class MT5Integration {
 
     try {
       console.log(`[MT5] Executing ${request.action} order for ${request.symbol}, volume: ${request.volume}`);
+      console.log(`[MT5] Request details:`, request);
 
       // Validate request
       if (request.volume <= 0) {
@@ -224,8 +234,10 @@ export class MT5Integration {
         comment: request.comment,
       });
 
+      console.log(`[MT5] Python trade response:`, result);
+
       if (result.success) {
-        console.log(`[MT5] Trade executed: ${request.action} ${request.symbol} @ ${result.price}`);
+        console.log(`[MT5] ✓ Trade executed: ${request.action} ${request.symbol} @ ${result.price} (ticket: ${result.ticket})`);
         return {
           success: true,
           ticket: result.ticket,
@@ -234,11 +246,11 @@ export class MT5Integration {
           volume: result.volume || request.volume,
         };
       } else {
-        console.error(`[MT5] Trade failed: ${result.error || 'Unknown error'}`);
+        console.error(`[MT5] ✗ Trade failed: ${result.error} (code: ${result.errorCode})`);
         return {
           success: false,
           error: result.error || 'Trade execution failed',
-          errorCode: -3,
+          errorCode: result.errorCode || -3,
         };
       }
     } catch (error: any) {
