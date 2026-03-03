@@ -64,6 +64,8 @@ export class MT5WindowsWrapper {
       };
     }
 
+    console.log(`[MT5 Python] Calling: ${command}`, args);
+
     return new Promise((resolve) => {
       // Use 'python' on Windows (not 'python3')
       const python = spawn('python', [this.pythonScript, command, ...args]);
@@ -75,24 +77,33 @@ export class MT5WindowsWrapper {
       });
 
       python.stderr.on('data', (data) => {
-        error += data.toString();
+        const errMsg = data.toString();
+        error += errMsg;
+        console.error(`[MT5 Python stderr]: ${errMsg}`);
       });
 
       // Add timeout to prevent hanging
       const timeout = setTimeout(() => {
         python.kill();
+        console.error('[MT5 Python] Timeout (10s)');
         resolve({ success: false, error: 'Python script timeout (10s)' });
       }, 10000);
 
       python.on('close', (code) => {
         clearTimeout(timeout);
+        console.log(`[MT5 Python] Exit code: ${code}, output length: ${output.length}`);
+
         if (code !== 0) {
+          console.error(`[MT5 Python] Error output: ${error}`);
           resolve({ success: false, error: error || `Python script failed with code ${code}` });
         } else {
           try {
-            const result = JSON.parse(output.trim());
+            const trimmed = output.trim();
+            console.log(`[MT5 Python] Raw output: ${trimmed.substring(0, 200)}`);
+            const result = JSON.parse(trimmed);
             resolve(result);
-          } catch (e) {
+          } catch (e: any) {
+            console.error(`[MT5 Python] JSON parse error: ${e.message}`);
             resolve({ success: false, error: `Invalid JSON response: ${output}` });
           }
         }
@@ -100,6 +111,7 @@ export class MT5WindowsWrapper {
 
       python.on('error', (err) => {
         clearTimeout(timeout);
+        console.error(`[MT5 Python] Process error: ${err.message}`);
         resolve({ success: false, error: `Failed to start Python: ${err.message}` });
       });
     });
@@ -123,9 +135,12 @@ export class MT5WindowsWrapper {
    * Get account information
    */
   async getAccountInfo(): Promise<MT5AccountInfo> {
-    if (!this.connected) {
+    if (!this.connected || !this.credentials) {
       return { success: false, error: 'MT5 not connected. Please connect your broker account first.' };
     }
+
+    // Re-login since each Python process is new
+    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
 
     return await this.callPython('account_info');
   }
@@ -134,9 +149,12 @@ export class MT5WindowsWrapper {
    * Get current price for a symbol
    */
   async getPrice(symbol: string): Promise<any> {
-    if (!this.connected) {
+    if (!this.connected || !this.credentials) {
       return { success: false, error: 'MT5 not connected' };
     }
+
+    // Re-login since each Python process is new
+    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
 
     return await this.callPython('get_price', symbol);
   }
@@ -152,9 +170,12 @@ export class MT5WindowsWrapper {
     takeProfit?: number;
     comment?: string;
   }): Promise<MT5TradeResult> {
-    if (!this.connected) {
+    if (!this.connected || !this.credentials) {
       return { success: false, error: 'MT5 not connected' };
     }
+
+    // Re-login since each Python process is new
+    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
 
     return await this.callPython(
       'execute_trade',
@@ -171,9 +192,12 @@ export class MT5WindowsWrapper {
    * Get open positions
    */
   async getPositions(): Promise<any> {
-    if (!this.connected) {
+    if (!this.connected || !this.credentials) {
       return { success: false, error: 'MT5 not connected' };
     }
+
+    // Re-login since each Python process is new
+    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
 
     return await this.callPython('get_positions');
   }
@@ -182,9 +206,12 @@ export class MT5WindowsWrapper {
    * Close a position
    */
   async closePosition(ticket: number): Promise<any> {
-    if (!this.connected) {
+    if (!this.connected || !this.credentials) {
       return { success: false, error: 'MT5 not connected' };
     }
+
+    // Re-login since each Python process is new
+    await this.callPython('initialize', this.credentials.login, this.credentials.password, this.credentials.server);
 
     return await this.callPython('close_position', ticket.toString());
   }

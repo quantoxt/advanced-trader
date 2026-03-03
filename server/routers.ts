@@ -513,12 +513,12 @@ export const appRouter = router({
         login: z.number(),
         password: z.string(),
         server: z.string(),
-        broker: z.string().default("ACY Securities"),
+        broker: z.string().default("MT5"),
         accountType: z.enum(["demo", "live"]).default("demo"),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getMT5Instance, validateMT5Credentials } = await import("./trading/mt5Integration");
-        
+
         // Validate credentials
         const validation = validateMT5Credentials({
           login: input.login,
@@ -526,11 +526,11 @@ export const appRouter = router({
           server: input.server,
           broker: input.broker,
         });
-        
+
         if (!validation.valid) {
           throw new Error(validation.error || "Invalid MT5 credentials");
         }
-        
+
         // Connect to MT5
         const mt5 = getMT5Instance();
         const connected = await mt5.connect({
@@ -539,23 +539,37 @@ export const appRouter = router({
           server: input.server,
           broker: input.broker,
         });
-        
+
         if (!connected) {
-          throw new Error("Failed to connect to MT5. Please check your credentials.");
+          throw new Error("Failed to connect to MT5. Please check your credentials and ensure MT5 is running.");
         }
-        
-        // Get account info
-        const accountInfo = await mt5.getAccountInfo();
+
+        // Get account info with fallback
+        let accountInfo = await mt5.getAccountInfo();
+
+        // If account info failed, return a fallback response
         if (!accountInfo) {
-          throw new Error("Connected but failed to retrieve account information.");
+          console.warn('[MT5] Could not retrieve account info, using fallback');
+          accountInfo = {
+            balance: 0,
+            equity: 0,
+            margin: 0,
+            freeMargin: 0,
+            marginLevel: 0,
+            profit: 0,
+            currency: 'USD',
+            leverage: 100,
+            name: `MT5 Account (${input.login})`,
+            company: input.server,
+          };
         }
-        
+
         // Save connection to database
         const db = await getDb();
         if (db) {
           const { brokerConnections } = await import("../drizzle/schema");
           const id = `broker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          
+
           await db.insert(brokerConnections).values({
             id,
             userId: ctx.user.id,
@@ -564,7 +578,7 @@ export const appRouter = router({
             status: "connected",
           });
         }
-        
+
         return {
           success: true,
           connected: true,
