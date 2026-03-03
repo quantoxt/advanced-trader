@@ -70,7 +70,18 @@ def initialize_mt5(login, password, server):
         mt5.shutdown()
         return {"success": False, "error": f"Connected but failed to get account info: {mt5.last_error()}"}
 
-    return {"success": True, "message": "Connected to MT5", "balance": account_info.balance, "equity": account_info.equity}
+    # Calculate margin level
+    margin_level = 0
+    if account_info.margin > 0:
+        margin_level = account_info.equity / account_info.margin * 100
+
+    return {
+        "success": True,
+        "message": "Connected to MT5",
+        "balance": account_info.balance,
+        "equity": account_info.equity,
+        "marginLevel": margin_level,
+    }
 
 def get_account_info(login=None, password=None, server=None):
     """Get real account information from MT5"""
@@ -81,8 +92,14 @@ def get_account_info(login=None, password=None, server=None):
 
         # Try to get account info from active MT5 terminal
         account_info = mt5.account_info()
+
+        # If we have account info, return it
         if account_info is not None:
-            # Successfully got account info from active terminal
+            # Calculate margin level
+            margin_level = 0
+            if account_info.margin > 0:
+                margin_level = account_info.equity / account_info.margin * 100
+
             return {
                 "success": True,
                 "balance": account_info.balance,
@@ -95,6 +112,7 @@ def get_account_info(login=None, password=None, server=None):
                 "name": account_info.name,
                 "server": account_info.server,
                 "login": account_info.login,
+                "marginLevel": margin_level,
             }
 
         # No active account - try to login with provided or cached credentials
@@ -107,6 +125,17 @@ def get_account_info(login=None, password=None, server=None):
             if authorized:
                 account_info = mt5.account_info()
                 if account_info is not None:
+                    # Update cached credentials
+                    global _cached_login, _cached_password, _cached_server
+                    _cached_login = int(use_login)
+                    _cached_password = use_password
+                    _cached_server = use_server
+
+                    # Calculate margin level
+                    margin_level = 0
+                    if account_info.margin > 0:
+                        margin_level = account_info.equity / account_info.margin * 100
+
                     return {
                         "success": True,
                         "balance": account_info.balance,
@@ -119,9 +148,10 @@ def get_account_info(login=None, password=None, server=None):
                         "name": account_info.name,
                         "server": account_info.server,
                         "login": account_info.login,
+                        "marginLevel": margin_level,
                     }
 
-        return {"success": False, "error": f"No active account in MT5 terminal: {mt5.last_error()}. Make sure you're logged into MT5 or connect via the web interface!"}
+        return {"success": False, "error": f"No active account in MT5 terminal. Please log in to MT5 terminal or provide valid credentials."}
     except Exception as e:
         return {"success": False, "error": f"Exception in get_account_info: {str(e)}"}
 

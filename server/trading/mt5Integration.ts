@@ -142,12 +142,12 @@ export class MT5Integration {
         equity: info.equity || info.balance || 0,
         margin: info.margin || 0,
         freeMargin: info.freeMargin || info.balance || 0,
-        marginLevel: info.margin || 0,
+        marginLevel: info.marginLevel || 0,
         profit: info.profit || 0,
         currency: info.currency || 'USD',
         leverage: info.leverage || 500,
         name: info.name || this.credentials?.login.toString() || 'MT5 Account',
-        company: info.company || this.credentials?.server || 'MT5 Broker',
+        company: info.server || this.credentials?.server || 'MT5 Broker',
       };
     } catch (error: any) {
       console.error('[MT5] Failed to get account info:', error?.message || error);
