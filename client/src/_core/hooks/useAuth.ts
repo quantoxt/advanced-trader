@@ -1,4 +1,4 @@
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, isOAuthConfigured } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
@@ -9,7 +9,9 @@ type UseAuthOptions = {
 };
 
 export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
+  // Default to empty redirect if OAuth is not configured
+  const defaultRedirect = isOAuthConfigured() ? getLoginUrl() : "";
+  const { redirectOnUnauthenticated = false, redirectPath = defaultRedirect } =
     options ?? {};
   const utils = trpc.useUtils();
 
@@ -61,7 +63,8 @@ export function useAuth(options?: UseAuthOptions) {
   ]);
 
   useEffect(() => {
-    if (!redirectOnUnauthenticated) return;
+    // Skip redirect if OAuth is not configured or redirect path is empty
+    if (!redirectOnUnauthenticated || !redirectPath) return;
     if (meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
