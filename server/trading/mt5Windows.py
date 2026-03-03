@@ -182,61 +182,64 @@ def get_current_price(symbol, login=None, password=None, server=None):
 
 def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment="", login=None, password=None, server=None):
     """Execute a trade on MT5"""
-    if not ensure_login_with_creds(login, password, server):
-        return {"success": False, "error": "Not logged in to MT5"}
+    try:
+        if not ensure_login_with_creds(login, password, server):
+            return {"success": False, "error": "Not logged in to MT5"}
 
-    # Get symbol info
-    symbol_info = mt5.symbol_info(symbol)
-    if symbol_info is None:
-        return {"success": False, "error": f"Symbol {symbol} not found"}
+        # Get symbol info
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            return {"success": False, "error": f"Symbol {symbol} not found"}
 
-    # Enable symbol if not enabled
-    if not symbol_info.visible:
-        if not mt5.symbol_select(symbol, True):
-            return {"success": False, "error": f"Failed to select {symbol}"}
+        # Enable symbol if not enabled
+        if not symbol_info.visible:
+            if not mt5.symbol_select(symbol, True):
+                return {"success": False, "error": f"Failed to select {symbol}"}
 
-    # Sanitize comment: remove special chars and limit length (MT5 max is typically 31 chars)
-    clean_comment = comment.replace('%', '').replace('(', '').replace(')', '').replace('[', '').replace(']', '')[:23]
+        # Sanitize comment: remove special chars and limit length (MT5 max is typically 31 chars)
+        clean_comment = comment.replace('%', '').replace('(', '').replace(')', '').replace('[', '').replace(']', '')[:23]
 
-    # Prepare trade request
-    order_type = mt5.ORDER_TYPE_BUY if action == "buy" else mt5.ORDER_TYPE_SELL
-    price = mt5.symbol_info_tick(symbol).ask if action == "buy" else mt5.symbol_info_tick(symbol).bid
+        # Prepare trade request
+        order_type = mt5.ORDER_TYPE_BUY if action == "buy" else mt5.ORDER_TYPE_SELL
+        price = mt5.symbol_info_tick(symbol).ask if action == "buy" else mt5.symbol_info_tick(symbol).bid
 
-    request = {
-        "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": symbol,
-        "volume": float(volume),
-        "type": order_type,
-        "price": price,
-        "sl": float(stop_loss) if stop_loss else 0.0,
-        "tp": float(take_profit) if take_profit else 0.0,
-        "deviation": 20,
-        "magic": 234000,
-        "comment": clean_comment if clean_comment else "Trade",
-        "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_BY_SERVER,  # Let broker/server decide filling mode (most compatible)
-    }
-
-    # Send trade request
-    result = mt5.order_send(request)
-    
-    if result is None:
-        return {"success": False, "error": f"Order send failed: {mt5.last_error()}"}
-    
-    if result.retcode != mt5.TRADE_RETCODE_DONE:
-        return {
-            "success": False,
-            "error": f"Order failed: {result.comment}",
-            "retcode": result.retcode,
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": float(volume),
+            "type": order_type,
+            "price": price,
+            "sl": float(stop_loss) if stop_loss else 0.0,
+            "tp": float(take_profit) if take_profit else 0.0,
+            "deviation": 20,
+            "magic": 234000,
+            "comment": clean_comment if clean_comment else "Trade",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_BY_SERVER,
         }
-    
-    return {
-        "success": True,
-        "ticket": result.order,
-        "volume": result.volume,
-        "price": result.price,
-        "comment": result.comment,
-    }
+
+        # Send trade request
+        result = mt5.order_send(request)
+
+        if result is None:
+            return {"success": False, "error": f"Order send failed: {mt5.last_error()}"}
+
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            return {
+                "success": False,
+                "error": f"Order failed: {result.comment}",
+                "retcode": result.retcode,
+            }
+
+        return {
+            "success": True,
+            "ticket": result.order,
+            "volume": result.volume,
+            "price": result.price,
+            "comment": result.comment,
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Exception: {str(e)}"}
 
 def get_open_positions(login=None, password=None, server=None):
     """Get all open positions"""
