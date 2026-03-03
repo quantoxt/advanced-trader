@@ -17,7 +17,7 @@ if "%ERRORLEVEL%"=="1" (
 )
 
 echo [1/2] Starting development server...
-start "Trading Bot Server" cmd /k "pnpm dev"
+start "Trading Bot Server" cmd /k "pnpm dev:windows"
 
 timeout /t 5 /nobreak >nul
 
