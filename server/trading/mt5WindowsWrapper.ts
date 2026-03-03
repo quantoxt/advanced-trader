@@ -59,6 +59,7 @@ export class MT5WindowsWrapper {
     }
 
     return new Promise((resolve) => {
+      // Use 'python' on Windows (not 'python3')
       const python = spawn('python', [this.pythonScript, command, ...args]);
       let output = '';
       let error = '';
@@ -71,20 +72,28 @@ export class MT5WindowsWrapper {
         error += data.toString();
       });
 
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        python.kill();
+        resolve({ success: false, error: 'Python script timeout (10s)' });
+      }, 10000);
+
       python.on('close', (code) => {
+        clearTimeout(timeout);
         if (code !== 0) {
-          resolve({ success: false, error: error || 'Python script failed' });
+          resolve({ success: false, error: error || `Python script failed with code ${code}` });
         } else {
           try {
-            const result = JSON.parse(output);
+            const result = JSON.parse(output.trim());
             resolve(result);
           } catch (e) {
-            resolve({ success: false, error: 'Invalid JSON response from Python script' });
+            resolve({ success: false, error: `Invalid JSON response: ${output}` });
           }
         }
       });
 
       python.on('error', (err) => {
+        clearTimeout(timeout);
         resolve({ success: false, error: `Failed to start Python: ${err.message}` });
       });
     });

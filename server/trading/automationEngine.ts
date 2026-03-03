@@ -355,10 +355,19 @@ export class AutomationEngine {
    * Get automation status
    */
   getStatus() {
-    return {
-      isRunning: this.isRunning,
-      mt5Connected: this.mt5.isConnected(),
-    };
+    try {
+      return {
+        isRunning: this.isRunning,
+        mt5Connected: this.mt5.isConnected(),
+      };
+    } catch (error: any) {
+      console.error('[Automation] Error getting status:', error?.message || error);
+      return {
+        isRunning: this.isRunning,
+        mt5Connected: false,
+        error: error?.message || 'Unknown error',
+      };
+    }
   }
 }
 

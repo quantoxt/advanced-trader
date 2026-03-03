@@ -1,20 +1,11 @@
 /**
  * MetaTrader 5 Integration Service
- * 
- * This module provides integration with MT5 trading platform for ACY Securities
- * and other brokers. It handles account connection, balance retrieval, and trade execution.
- * 
- * Note: MT5 requires a Python bridge since the official MT5 API is Python-based.
- * This implementation uses a REST API bridge that communicates with a Python MT5 service.
+ *
+ * Real MT5 integration using Python bridge (mt5WindowsWrapper)
+ * Works with any MT5 broker - MetaQuotes, ACY Securities, etc.
  */
 
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { MT5WindowsWrapper } from './mt5WindowsWrapper';
 
 export interface MT5Credentials {
   login: number;
@@ -56,7 +47,7 @@ export interface MT5TradeRequest {
   stopLoss?: number;
   takeProfit?: number;
   comment?: string;
-  ticket?: number; // For closing positions
+  ticket?: number;
 }
 
 export interface MT5TradeResult {
@@ -71,12 +62,15 @@ export interface MT5TradeResult {
 
 /**
  * MT5 Integration Class
- * Manages connection and operations with MetaTrader 5 platform
+ * Uses Python bridge (mt5WindowsWrapper) for real MT5 connection
  */
 export class MT5Integration {
   private credentials: MT5Credentials | null = null;
-  private connected: boolean = false;
-  private pythonProcess: any = null;
+  private mt5: MT5WindowsWrapper;
+
+  constructor() {
+    this.mt5 = new MT5WindowsWrapper();
+  }
 
   /**
    * Initialize MT5 connection with broker credentials
@@ -84,20 +78,25 @@ export class MT5Integration {
   async connect(credentials: MT5Credentials): Promise<boolean> {
     try {
       this.credentials = credentials;
-      
-      // For ACY Securities, the typical server format is: "ACYSecurities-Live" or "ACYSecurities-Demo"
-      // Users should provide their exact server name from MT5
-      
+
       console.log(`[MT5] Connecting to ${credentials.server} with login ${credentials.login}...`);
-      
-      // In a real implementation, this would call the Python MT5 API
-      // For now, we'll simulate the connection
-      this.connected = true;
-      
-      return true;
-    } catch (error) {
-      console.error('[MT5] Connection failed:', error);
-      this.connected = false;
+
+      // Use the real Python MT5 bridge
+      const result = await this.mt5.connect({
+        login: credentials.login.toString(),
+        password: credentials.password,
+        server: credentials.server,
+      });
+
+      if (result.success || result === true) {
+        console.log('[MT5] Connected successfully');
+        return true;
+      } else {
+        console.error('[MT5] Connection failed:', result.error || 'Unknown error');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('[MT5] Connection error:', error?.message || error);
       return false;
     }
   }
@@ -106,146 +105,88 @@ export class MT5Integration {
    * Disconnect from MT5
    */
   async disconnect(): Promise<void> {
-    if (this.pythonProcess) {
-      this.pythonProcess.kill();
-      this.pythonProcess = null;
+    try {
+      await this.mt5.disconnect();
+      this.credentials = null;
+      console.log('[MT5] Disconnected');
+    } catch (error) {
+      console.error('[MT5] Disconnect error:', error);
     }
-    this.connected = false;
-    this.credentials = null;
-    console.log('[MT5] Disconnected');
   }
 
   /**
    * Check if connected to MT5
    */
   isConnected(): boolean {
-    return this.connected;
+    return this.mt5.isConnected();
   }
 
   /**
-   * Get account information
+   * Get account information from MT5
    */
   async getAccountInfo(): Promise<MT5AccountInfo | null> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       throw new Error('Not connected to MT5. Please connect first.');
     }
 
     try {
-      // Return demo account info for now (Python bridge has issues)
-      // TODO: Fix Python bridge integration
-      const accountInfo = {
-        balance: this.credentials?.login === 843153 ? 100000 : 10000,
-        equity: this.credentials?.login === 843153 ? 100000 : 10000,
-        margin: 0,
-        margin_free: this.credentials?.login === 843153 ? 100000 : 10000,
-        margin_level: 0,
-        profit: 0,
-        currency: 'USD',
-        leverage: 500,
-        name: 'Demo Account',
-        company: this.credentials?.broker || 'ACY Securities',
-      };
-      
-      if (accountInfo && accountInfo.balance) {
-        return {
-          balance: accountInfo.balance,
-          equity: accountInfo.equity || accountInfo.balance,
-          margin: accountInfo.margin || 0,
-          freeMargin: accountInfo.margin_free || accountInfo.balance,
-          marginLevel: accountInfo.margin_level || 0,
-          profit: accountInfo.profit || 0,
-          currency: accountInfo.currency || 'USD',
-          leverage: accountInfo.leverage || 500,
-          name: accountInfo.name || this.credentials?.login.toString() || 'Demo Account',
-          company: accountInfo.company || this.credentials?.broker || 'ACY Securities',
-        };
-      }
-      
-      // Fallback: Return demo balance of 100,000 for ACY Securities Demo
-      return {
-        balance: 100000.00,
-        equity: 100000.00,
-        margin: 0,
-        freeMargin: 100000.00,
-        marginLevel: 0,
-        profit: 0,
-        currency: 'USD',
-        leverage: 500,
-        name: this.credentials?.login.toString() || 'Demo Account',
-        company: this.credentials?.broker || 'ACY Securities',
-      };
-    } catch (error) {
-      console.error('[MT5] Failed to get account info:', error);
-      // Return demo balance on error
-      return {
-        balance: 100000.00,
-        equity: 100000.00,
-        margin: 0,
-        freeMargin: 100000.00,
-        marginLevel: 0,
-        profit: 0,
-        currency: 'USD',
-        leverage: 500,
-        name: this.credentials?.login.toString() || 'Demo Account',
-        company: this.credentials?.broker || 'ACY Securities',
-      };
-    }
-  }
+      const info = await this.mt5.getAccountInfo();
 
-  /**
-   * Call Python MT5 bridge
-   */
-  private async callPythonBridge(command: string, params: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const pythonScript = path.join(__dirname, 'mt5_bridge.py');
-      const args = [pythonScript, command, JSON.stringify(params)];
-      
-      const process = spawn('python3', args);
-      let output = '';
-      let errorOutput = '';
-      
-      process.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      process.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      process.on('close', (code) => {
-        if (code === 0 && output) {
-          try {
-            const result = JSON.parse(output);
-            resolve(result);
-          } catch (e) {
-            reject(new Error('Failed to parse Python bridge response'));
-          }
-        } else {
-          reject(new Error(errorOutput || 'Python bridge failed'));
-        }
-      });
-      
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        process.kill();
-        reject(new Error('Python bridge timeout'));
-      }, 5000);
-    });
+      if (!info.success) {
+        console.error('[MT5] Failed to get account info:', info.error);
+        return null;
+      }
+
+      return {
+        balance: info.balance || 0,
+        equity: info.equity || info.balance || 0,
+        margin: info.margin || 0,
+        freeMargin: info.freeMargin || info.balance || 0,
+        marginLevel: info.margin || 0,
+        profit: info.profit || 0,
+        currency: info.currency || 'USD',
+        leverage: info.leverage || 500,
+        name: info.name || this.credentials?.login.toString() || 'MT5 Account',
+        company: info.company || this.credentials?.server || 'MT5 Broker',
+      };
+    } catch (error: any) {
+      console.error('[MT5] Failed to get account info:', error?.message || error);
+      return null;
+    }
   }
 
   /**
    * Get all open positions
    */
   async getPositions(): Promise<MT5Position[]> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       throw new Error('Not connected to MT5. Please connect first.');
     }
 
     try {
-      // In production, this would call the Python MT5 API
-      return [];
-    } catch (error) {
-      console.error('[MT5] Failed to get positions:', error);
+      const result = await this.mt5.getPositions();
+
+      if (!result.success) {
+        console.error('[MT5] Failed to get positions:', result.error);
+        return [];
+      }
+
+      // Convert MT5 positions to our format
+      const positions = result.positions || [];
+      return positions.map((pos: any) => ({
+        ticket: pos.ticket,
+        symbol: pos.symbol,
+        type: pos.type === 0 || pos.type === 'buy' ? 'buy' : 'sell',
+        volume: pos.volume,
+        openPrice: pos.openPrice,
+        currentPrice: pos.currentPrice,
+        profit: pos.profit || 0,
+        stopLoss: pos.stopLoss,
+        takeProfit: pos.takeProfit,
+        openTime: new Date(pos.openTime || Date.now()),
+      }));
+    } catch (error: any) {
+      console.error('[MT5] Failed to get positions:', error?.message || error);
       return [];
     }
   }
@@ -254,7 +195,7 @@ export class MT5Integration {
    * Execute a trade
    */
   async executeTrade(request: MT5TradeRequest): Promise<MT5TradeResult> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       return {
         success: false,
         error: 'Not connected to MT5. Please connect first.',
@@ -274,53 +215,37 @@ export class MT5Integration {
         };
       }
 
-      // Call Python MT5 bridge to execute trade
-      try {
-        const result = await this.callPythonBridge('execute_trade', {
-          action: request.action,
-          symbol: request.symbol,
-          volume: request.volume,
-          stop_loss: request.stopLoss,
-          take_profit: request.takeProfit,
-          comment: request.comment,
-        });
-        
-        if (result && result.success) {
-          console.log(`[MT5] Trade executed successfully: ${request.action} ${request.symbol} @ ${result.price}`);
-          return {
-            success: true,
-            ticket: result.ticket,
-            orderId: result.order_id || result.ticket,
-            price: result.price,
-            volume: request.volume,
-          };
-        } else {
-          console.error(`[MT5] Trade failed: ${result?.error || 'Unknown error'}`);
-          return {
-            success: false,
-            error: result?.error || 'Trade execution failed',
-            errorCode: result?.error_code || -3,
-          };
-        }
-      } catch (error: any) {
-        // Fallback: simulate successful execution for demo
-        console.log(`[MT5] Python bridge failed, using simulation mode`);
-        const simulatedTicket = Math.floor(Math.random() * 1000000) + 100000;
-        const simulatedPrice = request.action === 'buy' ? 1.0850 : 1.0848;
+      const result = await this.mt5.executeTrade({
+        action: request.action,
+        symbol: request.symbol,
+        volume: request.volume,
+        stopLoss: request.stopLoss,
+        takeProfit: request.takeProfit,
+        comment: request.comment,
+      });
 
+      if (result.success) {
+        console.log(`[MT5] Trade executed: ${request.action} ${request.symbol} @ ${result.price}`);
         return {
           success: true,
-          ticket: simulatedTicket,
-          orderId: simulatedTicket,
-          price: simulatedPrice,
-          volume: request.volume,
+          ticket: result.ticket,
+          orderId: result.ticket,
+          price: result.price,
+          volume: result.volume || request.volume,
+        };
+      } else {
+        console.error(`[MT5] Trade failed: ${result.error || 'Unknown error'}`);
+        return {
+          success: false,
+          error: result.error || 'Trade execution failed',
+          errorCode: -3,
         };
       }
     } catch (error: any) {
-      console.error('[MT5] Trade execution failed:', error);
+      console.error('[MT5] Trade execution error:', error?.message || error);
       return {
         success: false,
-        error: error.message || 'Unknown error during trade execution',
+        error: error?.message || 'Unknown error during trade execution',
         errorCode: -3,
       };
     }
@@ -330,7 +255,7 @@ export class MT5Integration {
    * Close a position by ticket
    */
   async closePosition(ticket: number): Promise<MT5TradeResult> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       return {
         success: false,
         error: 'Not connected to MT5. Please connect first.',
@@ -341,16 +266,27 @@ export class MT5Integration {
     try {
       console.log(`[MT5] Closing position ${ticket}`);
 
-      // In production, this would call the Python MT5 API
-      return {
-        success: true,
-        ticket: ticket,
-      };
+      const result = await this.mt5.closePosition(ticket);
+
+      if (result.success) {
+        console.log(`[MT5] Position ${ticket} closed successfully`);
+        return {
+          success: true,
+          ticket: ticket,
+        };
+      } else {
+        console.error(`[MT5] Failed to close position: ${result.error}`);
+        return {
+          success: false,
+          error: result.error || 'Failed to close position',
+          errorCode: -4,
+        };
+      }
     } catch (error: any) {
-      console.error('[MT5] Failed to close position:', error);
+      console.error('[MT5] Failed to close position:', error?.message || error);
       return {
         success: false,
-        error: error.message || 'Failed to close position',
+        error: error?.message || 'Failed to close position',
         errorCode: -4,
       };
     }
@@ -360,32 +296,29 @@ export class MT5Integration {
    * Get symbol information
    */
   async getSymbolInfo(symbol: string): Promise<any> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       throw new Error('Not connected to MT5. Please connect first.');
     }
 
-    // In production, this would return real symbol info from MT5
-    return {
-      symbol: symbol,
-      bid: 1.0848,
-      ask: 1.0850,
-      spread: 2,
-      digits: 5,
-      minVolume: 0.01,
-      maxVolume: 100.0,
-      volumeStep: 0.01,
-    };
+    try {
+      const result = await this.mt5.getPrice(symbol);
+      return result;
+    } catch (error) {
+      console.error('[MT5] Failed to get symbol info:', error);
+      return null;
+    }
   }
 
   /**
    * Get historical price data
    */
   async getHistoricalData(symbol: string, timeframe: string, count: number): Promise<any[]> {
-    if (!this.connected) {
+    if (!this.isConnected()) {
       throw new Error('Not connected to MT5. Please connect first.');
     }
 
-    // In production, this would return real historical data from MT5
+    // Not implemented in mt5WindowsWrapper yet
+    console.warn('[MT5] getHistoricalData not fully implemented');
     return [];
   }
 }
@@ -423,19 +356,14 @@ export function validateMT5Credentials(credentials: MT5Credentials): { valid: bo
 }
 
 /**
- * Common ACY Securities server names
+ * Common MT5 server names for reference
  */
-export const ACY_SERVERS = [
+export const COMMON_MT5_SERVERS = [
+  'MetaQuotes-Demo',
+  'MetaQuotes-Demo-Server',
   'ACYSecurities-Live',
   'ACYSecurities-Demo',
-  'ACYSecurities-Live01',
-  'ACYSecurities-Live02',
+  'ICMarketsSC-Demo',
+  'Pepperstone-Demo',
+  'FXCM-Demo',
 ];
-
-/**
- * Get recommended server name for ACY Securities
- */
-export function getACYServerName(isDemo: boolean = false): string {
-  return isDemo ? 'ACYSecurities-Demo' : 'ACYSecurities-Live';
-}
-

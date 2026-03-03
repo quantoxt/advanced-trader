@@ -2,36 +2,70 @@
 """
 Windows MT5 Integration
 Real MetaTrader5 Python library integration for Windows VPS
+Supports any MT5 broker - MetaQuotes, ACY Securities, etc.
 """
 
 import MetaTrader5 as mt5
 import json
 import sys
+import os
 from datetime import datetime
 
+# Global credentials for auto-login
+_cached_login = None
+_cached_password = None
+_cached_server = None
+
+def ensure_login():
+    """Ensure we're logged in to MT5"""
+    global _cached_login, _cached_password, _cached_server
+
+    if not mt5.initialize():
+        return False
+
+    # Check if already logged in with the same account
+    account_info = mt5.account_info()
+    if account_info is not None:
+        if (_cached_login and account_info.login == _cached_login):
+            return True
+
+    # Try to login with cached credentials
+    if _cached_login and _cached_password and _cached_server:
+        authorized = mt5.login(login=int(_cached_login), password=_cached_password, server=_cached_server)
+        return authorized
+
+    return False
+
 def initialize_mt5(login, password, server):
-    """Initialize MT5 connection"""
+    """Initialize MT5 connection and cache credentials"""
+    global _cached_login, _cached_password, _cached_server
+
     if not mt5.initialize():
         return {"success": False, "error": f"MT5 initialization failed: {mt5.last_error()}"}
-    
+
     # Login to MT5 account
     authorized = mt5.login(login=int(login), password=password, server=server)
-    
+
     if not authorized:
         mt5.shutdown()
         return {"success": False, "error": f"Login failed: {mt5.last_error()}"}
-    
+
+    # Cache credentials for auto-login
+    _cached_login = int(login)
+    _cached_password = password
+    _cached_server = server
+
     return {"success": True, "message": "Connected to MT5"}
 
 def get_account_info():
     """Get real account information from MT5"""
-    if not mt5.initialize():
-        return {"success": False, "error": "MT5 not initialized"}
-    
+    if not ensure_login():
+        return {"success": False, "error": "Not logged in to MT5"}
+
     account_info = mt5.account_info()
     if account_info is None:
         return {"success": False, "error": f"Failed to get account info: {mt5.last_error()}"}
-    
+
     return {
         "success": True,
         "balance": account_info.balance,
@@ -48,19 +82,19 @@ def get_account_info():
 
 def get_current_price(symbol):
     """Get current price for a symbol"""
-    if not mt5.initialize():
-        return {"success": False, "error": "MT5 not initialized"}
-    
+    if not ensure_login():
+        return {"success": False, "error": "Not logged in to MT5"}
+
     # Get symbol info
     symbol_info = mt5.symbol_info(symbol)
     if symbol_info is None:
         return {"success": False, "error": f"Symbol {symbol} not found"}
-    
+
     # Get current tick
     tick = mt5.symbol_info_tick(symbol)
     if tick is None:
         return {"success": False, "error": f"Failed to get tick for {symbol}"}
-    
+
     return {
         "success": True,
         "symbol": symbol,
@@ -73,8 +107,8 @@ def get_current_price(symbol):
 
 def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment=""):
     """Execute a trade on MT5"""
-    if not mt5.initialize():
-        return {"success": False, "error": "MT5 not initialized"}
+    if not ensure_login():
+        return {"success": False, "error": "Not logged in to MT5"}
     
     # Get symbol info
     symbol_info = mt5.symbol_info(symbol)
@@ -128,13 +162,13 @@ def execute_trade(action, symbol, volume, stop_loss=0, take_profit=0, comment=""
 
 def get_open_positions():
     """Get all open positions"""
-    if not mt5.initialize():
-        return {"success": False, "error": "MT5 not initialized"}
-    
+    if not ensure_login():
+        return {"success": False, "error": "Not logged in to MT5"}
+
     positions = mt5.positions_get()
     if positions is None:
         return {"success": True, "positions": []}
-    
+
     positions_list = []
     for pos in positions:
         positions_list.append({
@@ -149,13 +183,13 @@ def get_open_positions():
             "tp": pos.tp,
             "comment": pos.comment,
         })
-    
+
     return {"success": True, "positions": positions_list}
 
 def close_position(ticket):
     """Close a position by ticket"""
-    if not mt5.initialize():
-        return {"success": False, "error": "MT5 not initialized"}
+    if not ensure_login():
+        return {"success": False, "error": "Not logged in to MT5"}
     
     # Get position info
     position = mt5.positions_get(ticket=ticket)
@@ -194,7 +228,11 @@ def close_position(ticket):
 
 def shutdown_mt5():
     """Shutdown MT5 connection"""
+    global _cached_login, _cached_password, _cached_server
     mt5.shutdown()
+    _cached_login = None
+    _cached_password = None
+    _cached_server = None
     return {"success": True, "message": "MT5 connection closed"}
 
 # CLI interface
