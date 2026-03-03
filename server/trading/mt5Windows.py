@@ -85,6 +85,7 @@ def initialize_mt5(login, password, server):
 
 def get_account_info(login=None, password=None, server=None):
     """Get real account information from MT5"""
+    global _cached_login, _cached_password, _cached_server
     try:
         # Initialize MT5 - this will connect to the active MT5 terminal
         if not mt5.initialize():
@@ -126,7 +127,6 @@ def get_account_info(login=None, password=None, server=None):
                 account_info = mt5.account_info()
                 if account_info is not None:
                     # Update cached credentials
-                    global _cached_login, _cached_password, _cached_server
                     _cached_login = int(use_login)
                     _cached_password = use_password
                     _cached_server = use_server
