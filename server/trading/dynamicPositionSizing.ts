@@ -79,7 +79,11 @@ async function generateHistoricalData(symbol: string, period: number = 14): Prom
 
   if (!currentData) {
     // Return dummy data if price fetch fails
-    const basePrice = symbol.includes('JPY') ? 150.0 : 1.1;
+    const basePrice = symbol.includes('JPY') ? 150.0 :
+                      symbol.includes('XAU') ? 2000.0 : // Gold
+                      symbol.includes('XAG') ? 25.0 :  // Silver
+                      symbol.includes('BTC') ? 50000.0 :
+                      1.1;
     return Array.from({ length: period + 5 }, () => ({
       high: basePrice * (1 + Math.random() * 0.01),
       low: basePrice * (1 - Math.random() * 0.01),
@@ -88,7 +92,10 @@ async function generateHistoricalData(symbol: string, period: number = 14): Prom
   }
 
   const currentPrice = currentData.price;
-  const volatility = symbol.includes('BTC') || symbol.includes('ETH') ? 0.02 : 0.005;
+  // Set volatility based on symbol type
+  const volatility = symbol.includes('BTC') || symbol.includes('ETH') ? 0.02 :
+                     symbol.includes('XAU') || symbol.includes('XAG') ? 0.015 : // Metals
+                     0.005; // Forex
 
   // Generate synthetic candles based on current price and historical volatility
   return Array.from({ length: period + 5 }, (_, i) => {
@@ -137,13 +144,23 @@ function calculateATRStops(
 function getPipValue(symbol: string): number {
   const lowerSymbol = symbol.toLowerCase();
 
+  // JPY pairs (XXXJPY): 3 decimal places, 1 pip = 0.01
   if (lowerSymbol.includes('jpy')) {
-    return 0.01; // JPY pairs: 3 decimals
+    return 0.01;
   }
+
+  // Metals (XAUUSD - Gold, XAGUSD - Silver): 2 decimal places, 1 pip = 0.01
+  if (lowerSymbol.includes('xau') || lowerSymbol.includes('xag')) {
+    return 0.01;
+  }
+
+  // Crypto: whole numbers or varies by exchange
   if (lowerSymbol.includes('btc') || lowerSymbol.includes('eth')) {
-    return 1.0; // Crypto: whole numbers
+    return 1.0;
   }
-  return 0.0001; // Most forex pairs: 5 decimals
+
+  // Most forex pairs (EURUSD, GBPUSD, etc.): 5 decimal places, 1 pip = 0.0001
+  return 0.0001;
 }
 
 /**

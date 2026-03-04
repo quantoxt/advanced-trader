@@ -31,6 +31,15 @@ const FOREX_PAIRS = [
 ];
 
 /**
+ * Precious metals with their characteristics
+ * Gold and Silver are highly traded with good volatility
+ */
+const METAL_PAIRS = [
+  { symbol: "XAUUSD", volatility: "high", trend: "strong", liquidity: "very_high" }, // Gold
+  { symbol: "XAGUSD", volatility: "very_high", trend: "moderate", liquidity: "high" }, // Silver
+];
+
+/**
  * High-volatility cryptocurrencies with their characteristics
  */
 const CRYPTO_PAIRS = [
@@ -44,7 +53,7 @@ const CRYPTO_PAIRS = [
   { symbol: "MATICUSD", volatility: "very_high", trend: "moderate", liquidity: "medium" },
 ];
 
-const ALL_PAIRS = [...FOREX_PAIRS, ...CRYPTO_PAIRS];
+const ALL_PAIRS = [...FOREX_PAIRS, ...METAL_PAIRS, ...CRYPTO_PAIRS];
 
 /**
  * Generate individual optimized strategy for each trading pair
@@ -145,7 +154,17 @@ function selectBestAlgorithm(pair: { symbol: string; volatility: string; trend: 
   if (symbol === "NZDUSD") {
     return "swing";
   }
-  
+
+  // XAUUSD (Gold) - Strong trends, breakout strategy
+  if (symbol === "XAUUSD") {
+    return "breakout";
+  }
+
+  // XAGUSD (Silver) - High volatility, momentum
+  if (symbol === "XAGUSD") {
+    return "momentum";
+  }
+
   // BTCUSD - High volatility, use ML for prediction
   if (symbol === "BTCUSD") {
     return "mlBased";

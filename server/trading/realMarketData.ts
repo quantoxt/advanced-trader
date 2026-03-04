@@ -39,6 +39,8 @@ export class RealMarketDataService implements MarketDataService {
       'AUDUSD': 'AUDUSD=X',
       'USDCAD': 'USDCAD=X',
       'NZDUSD': 'NZDUSD=X',
+      'XAUUSD': 'GC=F',      // Gold Futures
+      'XAGUSD': 'SI=F',      // Silver Futures
       'BTCUSD': 'BTC-USD',
       'ETHUSD': 'ETH-USD',
       'SOLUSD': 'SOL-USD',
