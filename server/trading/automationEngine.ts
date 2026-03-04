@@ -9,6 +9,7 @@ import { generateIndividualPairStrategies } from "./pairStrategyGenerator";
 import { generateTradingSignals } from "./autoTrader";
 import { getMT5Instance } from "./mt5Integration";
 import { isMarketOpen, getMarketStatus } from "./marketHours";
+import { calculateOptimalPosition } from "./dynamicPositionSizing";
 
 export class AutomationEngine {
   private isRunning: boolean = false;
@@ -243,7 +244,10 @@ export class AutomationEngine {
         }
         
         // Generate signal for this strategy
-        const params = JSON.parse(strategy.parameters || "{}");
+        // Handle both string (from DB) and object (from generation) parameters
+        const params = typeof strategy.parameters === 'string'
+          ? JSON.parse(strategy.parameters || "{}")
+          : (strategy.parameters || {});
         const signals = await generateTradingSignals(strategy.id, symbols, strategy.algorithm || 'momentum', params);
         
         if (signals.length === 0) continue;
@@ -290,57 +294,7 @@ export class AutomationEngine {
   }
 
   /**
-   * Calculate pip value for a symbol based on its price structure
-   */
-  private getPipValue(symbol: string): number {
-    // Returns the value of 1 pip for the symbol
-    const lowerSymbol = symbol.toLowerCase();
-
-    // JPY pairs (XXXJPY): 3 decimal places, 1 pip = 0.01
-    if (lowerSymbol.includes('jpy')) {
-      return 0.01;
-    }
-
-    // Crypto and indices: varies, typically 2 decimal places
-    if (lowerSymbol.includes('btc') || lowerSymbol.includes('eth') || lowerSymbol.includes('crypto')) {
-      return 1.0; // For crypto, 1 point = 1 unit
-    }
-
-    // Most forex pairs (EURUSD, GBPUSD, etc.): 5 decimal places, 1 pip = 0.0001
-    if (lowerSymbol.includes('usd') || lowerSymbol.includes('eur') || lowerSymbol.includes('gbp') ||
-        lowerSymbol.includes('chf') || lowerSymbol.includes('aud') || lowerSymbol.includes('cad') ||
-        lowerSymbol.includes('nzd')) {
-      return 0.0001;
-    }
-
-    // Default for others
-    return 0.0001;
-  }
-
-  /**
-   * Calculate stop loss and take profit based on current price and pips
-   */
-  private calculateStops(action: 'buy' | 'sell', currentPrice: number, stopLossPips: number, takeProfitPips: number) {
-    const pipValue = this.getPipValue(action === 'buy' ? this.currentSymbol || 'EURUSD' : this.currentSymbol || 'EURUSD');
-
-    if (action === 'buy') {
-      return {
-        stopLoss: currentPrice - (stopLossPips * pipValue),
-        takeProfit: currentPrice + (takeProfitPips * pipValue),
-      };
-    } else {
-      return {
-        stopLoss: currentPrice + (stopLossPips * pipValue),
-        takeProfit: currentPrice - (takeProfitPips * pipValue),
-      };
-    }
-  }
-
-  // Store current symbol for pip calculation
-  private currentSymbol: string = '';
-
-  /**
-   * Auto-execute trade on MT5
+   * Auto-execute trade on MT5 with dynamic position sizing
    */
   private async autoExecuteTrade(strategy: any, signal: any) {
     try {
@@ -351,40 +305,83 @@ export class AutomationEngine {
         console.warn('[Automation] MT5 not connected, skipping trade execution');
         return;
       }
-      console.log(`[Automation] MT5 connected, proceeding with trade execution`);
 
-      const params = JSON.parse(strategy.parameters || "{}");
-      const positionSize = params.positionSize || 0.01;
-      const symbol = strategy.symbol || strategy.symbols;
-      this.currentSymbol = symbol;
-
-      // Get current price for dynamic SL/TP calculation
-      const priceData = await mt5.getSymbolInfo(symbol);
-      if (!priceData || !priceData.bid) {
-        console.error(`[Automation] Could not get current price for ${symbol}, skipping trade`);
+      // Only execute trades with 80%+ confidence
+      if (signal.confidence < 80) {
+        console.log(`[Automation] ⏸️  Skipping ${strategy.symbol}: confidence ${signal.confidence}% < 80%`);
         return;
       }
 
-      const currentPrice = priceData.ask || priceData.bid || signal.price;
+      console.log(`[Automation] MT5 connected, proceeding with trade execution`);
 
-      // Convert pips to actual price values
-      const stopLossPips = params.stopLoss * 1000; // Convert to pips (e.g., 0.001 → 1 pip for most pairs)
-      const takeProfitPips = params.takeProfit * 1000;
+      const params = typeof strategy.parameters === 'string'
+        ? JSON.parse(strategy.parameters || "{}")
+        : (strategy.parameters || {});
+      const symbol = strategy.symbol || strategy.symbols;
 
-      const stops = this.calculateStops(signal.action as 'buy' | 'sell', currentPrice, stopLossPips, takeProfitPips);
+      // Get current account info for dynamic sizing
+      const accountInfo = await mt5.getAccountInfo();
+      if (!accountInfo) {
+        console.error('[Automation] Could not get account info, skipping trade');
+        return;
+      }
 
-      console.log(`[Automation] Dynamic stops for ${symbol} @ ${currentPrice}: SL=${stops.stopLoss.toFixed(5)}, TP=${stops.takeProfit.toFixed(5)}`);
+      // Get current open positions to calculate total exposure
+      const openPositions = await mt5.getPositions();
+      let totalOpenExposure = 0;
+      for (const pos of openPositions) {
+        // Approximate exposure: volume × contract size (100k for forex) × current price
+        totalOpenExposure += pos.volume * 100000 * (pos.currentPrice || 1);
+      }
+
+      // Get risk rules from database
+      const db = await getDb();
+      let riskPercent = 1.0; // Default 1% per trade
+      if (db) {
+        const { riskRules } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const rules = await db.select().from(riskRules).where(eq(riskRules.userId, this.userId)).limit(1);
+        if (rules.length > 0) {
+          riskPercent = parseFloat(rules[0].riskPerTrade) || 1.0;
+        }
+      }
+
+      console.log(`[Automation] 📊 Account: $${accountInfo.equity.toFixed(2)}, Open Exposure: $${totalOpenExposure.toFixed(2)}, Risk: ${riskPercent}%`);
+
+      // Calculate optimal position size with ATR-based stops
+      const positionResult = await calculateOptimalPosition({
+        accountEquity: accountInfo.equity,
+        accountBalance: accountInfo.balance,
+        riskPercent,
+        signalConfidence: signal.confidence,
+        symbol,
+        action: signal.action as 'buy' | 'sell',
+        totalOpenExposure,
+        maxTotalExposurePercent: 20, // Max 20% total exposure
+        atrPeriod: 14,
+        atrMultiplier: 1.5,
+        riskRewardRatio: 2.0,
+      });
+
+      // Check if position size was calculated successfully
+      if (positionResult.lotSize <= 0) {
+        console.log(`[Automation] ⏸️  Skipping ${symbol}: ${positionResult.reason}`);
+        return;
+      }
+
+      console.log(`[Automation] 📈 ${symbol} ${signal.action.toUpperCase()}: ${positionResult.lotSize} lots (SL: ${positionResult.stopLoss.toFixed(5)}, TP: ${positionResult.takeProfit.toFixed(5)})`);
+      console.log(`[Automation] 💰 Risk: $${positionResult.riskAmount.toFixed(2)}, ATR: ${positionResult.atr.toFixed(5)}, Exposure: ${positionResult.exposurePercent.toFixed(1)}%`);
 
       const tradeRequest = {
         action: signal.action as "buy" | "sell",
         symbol: symbol,
-        volume: positionSize,
-        stopLoss: stops.stopLoss,
-        takeProfit: stops.takeProfit,
+        volume: positionResult.lotSize,
+        stopLoss: positionResult.stopLoss,
+        takeProfit: positionResult.takeProfit,
         comment: `Auto: ${strategy.name} (${Math.round(signal.confidence)}%)`,
       };
 
-      console.log(`[Automation] Executing trade: ${signal.action} ${symbol} x${positionSize} lots`);
+      console.log(`[Automation] Executing trade: ${signal.action} ${symbol} x${positionResult.lotSize} lots`);
 
       const result = await mt5.executeTrade(tradeRequest);
 
@@ -394,7 +391,6 @@ export class AutomationEngine {
         console.log(`[Automation] ✓ Trade executed: ${signal.action} ${tradeRequest.symbol} @ ${result.price} (ticket: ${result.ticket})`);
 
         // Save trade to database
-        const db = await getDb();
         if (db) {
           const { trades } = await import("../../drizzle/schema");
           const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
