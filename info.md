@@ -1,6 +1,6 @@
-Name     : General Account
-Type     : Forex Hedged USD
+Name     : Super Scalper
+Type     : Forex Hedged USD, Floating Leverage
 Server   : MetaQuotes-Demo
-Login    : 103899532
-Password : Iu@5OgUd
-Investor : 7fKsO*Cx
+Login    : 103911998
+Password : @8ViUqSy
+Investor : RzBhTh_3
