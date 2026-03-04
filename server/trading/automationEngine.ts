@@ -290,6 +290,56 @@ export class AutomationEngine {
   }
 
   /**
+   * Calculate pip value for a symbol based on its price structure
+   */
+  private getPipValue(symbol: string): number {
+    // Returns the value of 1 pip for the symbol
+    const lowerSymbol = symbol.toLowerCase();
+
+    // JPY pairs (XXXJPY): 3 decimal places, 1 pip = 0.01
+    if (lowerSymbol.includes('jpy')) {
+      return 0.01;
+    }
+
+    // Crypto and indices: varies, typically 2 decimal places
+    if (lowerSymbol.includes('btc') || lowerSymbol.includes('eth') || lowerSymbol.includes('crypto')) {
+      return 1.0; // For crypto, 1 point = 1 unit
+    }
+
+    // Most forex pairs (EURUSD, GBPUSD, etc.): 5 decimal places, 1 pip = 0.0001
+    if (lowerSymbol.includes('usd') || lowerSymbol.includes('eur') || lowerSymbol.includes('gbp') ||
+        lowerSymbol.includes('chf') || lowerSymbol.includes('aud') || lowerSymbol.includes('cad') ||
+        lowerSymbol.includes('nzd')) {
+      return 0.0001;
+    }
+
+    // Default for others
+    return 0.0001;
+  }
+
+  /**
+   * Calculate stop loss and take profit based on current price and pips
+   */
+  private calculateStops(action: 'buy' | 'sell', currentPrice: number, stopLossPips: number, takeProfitPips: number) {
+    const pipValue = this.getPipValue(action === 'buy' ? this.currentSymbol || 'EURUSD' : this.currentSymbol || 'EURUSD');
+
+    if (action === 'buy') {
+      return {
+        stopLoss: currentPrice - (stopLossPips * pipValue),
+        takeProfit: currentPrice + (takeProfitPips * pipValue),
+      };
+    } else {
+      return {
+        stopLoss: currentPrice + (stopLossPips * pipValue),
+        takeProfit: currentPrice - (takeProfitPips * pipValue),
+      };
+    }
+  }
+
+  // Store current symbol for pip calculation
+  private currentSymbol: string = '';
+
+  /**
    * Auto-execute trade on MT5
    */
   private async autoExecuteTrade(strategy: any, signal: any) {
@@ -306,13 +356,31 @@ export class AutomationEngine {
       const params = JSON.parse(strategy.parameters || "{}");
       const positionSize = params.positionSize || 0.01;
       const symbol = strategy.symbol || strategy.symbols;
+      this.currentSymbol = symbol;
+
+      // Get current price for dynamic SL/TP calculation
+      const priceData = await mt5.getPrice(symbol);
+      if (!priceData.success || !priceData.bid) {
+        console.error(`[Automation] Could not get current price for ${symbol}, skipping trade`);
+        return;
+      }
+
+      const currentPrice = priceData.ask || priceData.bid || signal.price;
+
+      // Convert pips to actual price values
+      const stopLossPips = params.stopLoss * 1000; // Convert to pips (e.g., 0.001 → 1 pip for most pairs)
+      const takeProfitPips = params.takeProfit * 1000;
+
+      const stops = this.calculateStops(signal.action as 'buy' | 'sell', currentPrice, stopLossPips, takeProfitPips);
+
+      console.log(`[Automation] Dynamic stops for ${symbol} @ ${currentPrice}: SL=${stops.stopLoss.toFixed(5)}, TP=${stops.takeProfit.toFixed(5)}`);
 
       const tradeRequest = {
         action: signal.action as "buy" | "sell",
         symbol: symbol,
         volume: positionSize,
-        stopLoss: params.stopLoss,
-        takeProfit: params.takeProfit,
+        stopLoss: stops.stopLoss,
+        takeProfit: stops.takeProfit,
         comment: `Auto: ${strategy.name} (${Math.round(signal.confidence)}%)`,
       };
 
