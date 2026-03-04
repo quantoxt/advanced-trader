@@ -359,8 +359,8 @@ export class AutomationEngine {
       this.currentSymbol = symbol;
 
       // Get current price for dynamic SL/TP calculation
-      const priceData = await mt5.getPrice(symbol);
-      if (!priceData.success || !priceData.bid) {
+      const priceData = await mt5.getSymbolInfo(symbol);
+      if (!priceData || !priceData.bid) {
         console.error(`[Automation] Could not get current price for ${symbol}, skipping trade`);
         return;
       }
