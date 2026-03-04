@@ -254,7 +254,8 @@ export async function generateOptimalStrategies(
 }
 
 /**
- * Calculate optimal position size based on account balance and risk tolerance
+ * Calculate optimal position size in MT5 lots based on account balance and risk tolerance
+ * Standard lot = 1.0 = 100,000 units of base currency
  */
 function calculatePositionSize(
   accountBalance: number,
@@ -270,7 +271,12 @@ function calculatePositionSize(
   const multiplier = riskMultipliers[riskTolerance];
   const riskAmount = accountBalance * baseRisk * multiplier;
 
-  return riskAmount;
+  // Convert to lots: Assuming standard lot (100k units)
+  // For a $1000 account, 2% risk = $20, which is ~0.02 lots
+  const lots = riskAmount / 1000;
+
+  // Ensure minimum lot size and reasonable maximum
+  return Math.max(0.01, Math.min(lots, 10.0));
 }
 
 /**

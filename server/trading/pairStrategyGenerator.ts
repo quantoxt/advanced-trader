@@ -226,20 +226,27 @@ function selectOptimalTimeframe(
 }
 
 /**
- * Calculate position size based on risk tolerance and volatility
+ * Calculate position size in MT5 lots based on risk tolerance and volatility
+ * Standard lot = 1.0 = 100,000 units of base currency
+ * Mini lot = 0.1 = 10,000 units
+ * Micro lot = 0.01 = 1,000 units
  */
 function calculatePositionSize(
   accountBalance: number,
   riskTolerance: "conservative" | "moderate" | "aggressive",
   volatility: string
 ): number {
-  const baseRisk = {
+  // Base risk as percentage of account
+  const baseRiskPercent = {
     conservative: 0.01, // 1% per trade
     moderate: 0.02,     // 2% per trade
     aggressive: 0.03,   // 3% per trade
   }[riskTolerance];
-  
-  // Adjust for volatility
+
+  // Risk amount in account currency
+  const riskAmount = accountBalance * baseRiskPercent;
+
+  // Adjust for volatility (reduce size for higher volatility)
   const volatilityMultiplier = {
     low: 1.2,
     medium: 1.0,
@@ -247,8 +254,14 @@ function calculatePositionSize(
     very_high: 0.6,
     extreme: 0.5,
   }[volatility] || 1.0;
-  
-  return accountBalance * baseRisk * volatilityMultiplier;
+
+  // Convert to lots: Assuming standard lot (100k units) and ~$10/pip for EURUSD
+  // For a $100 account, 1% risk = $1, which is ~0.01 lots
+  // This is a simplified calculation - in production you'd use pip value calculation
+  const lots = (riskAmount * volatilityMultiplier) / 1000;
+
+  // Ensure minimum lot size (typically 0.01) and reasonable maximum
+  return Math.max(0.01, Math.min(lots, 10.0));
 }
 
 /**
