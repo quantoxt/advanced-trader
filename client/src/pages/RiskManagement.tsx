@@ -22,6 +22,12 @@ export default function RiskManagement() {
 
   const utils = trpc.useUtils();
   const { data: riskRules, isLoading } = trpc.risk.getRules.useQuery();
+  const { data: mt5Status } = trpc.mt5.getMT5Status.useQuery();
+
+  // Get actual account balance from MT5 or portfolio
+  const accountBalance = mt5Status?.connected && mt5Status?.account
+    ? mt5Status.account.balance
+    : 10000; // Fallback to default if not connected
 
   useEffect(() => {
     if (riskRules) {
@@ -61,9 +67,9 @@ export default function RiskManagement() {
     return positionSize;
   };
 
-  const exampleBalance = 10000;
+  // Calculate position size based on actual account balance
   const examplePositionSize = calculatePositionSize(
-    exampleBalance,
+    accountBalance,
     parseFloat(riskPerTrade) || 2,
     parseFloat(stopLossPercent) || 2
   );
@@ -240,11 +246,18 @@ export default function RiskManagement() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-muted rounded-lg p-4">
-                  <div className="text-sm text-muted-foreground mb-2">Example Calculation</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm text-muted-foreground">Position Size Calculator</div>
+                    {mt5Status?.connected ? (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Live MT5</span>
+                    ) : (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Demo</span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm">Account Balance:</span>
-                      <span className="font-medium">${exampleBalance.toLocaleString()}</span>
+                      <span className="font-medium">${accountBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Risk Per Trade:</span>
@@ -261,7 +274,7 @@ export default function RiskManagement() {
                       </div>
                       <div className="flex justify-between mt-1">
                         <span className="text-sm font-semibold">Max Loss:</span>
-                        <span className="font-bold text-red-600">${(exampleBalance * (parseFloat(riskPerTrade) / 100)).toFixed(2)}</span>
+                        <span className="font-bold text-red-600">${(accountBalance * (parseFloat(riskPerTrade) / 100)).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
